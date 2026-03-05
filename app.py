@@ -14,11 +14,20 @@ st.set_page_config(page_title="Research Paper Summarizer", layout="wide")
 def get_services():
     return {
         "extractor": DocumentExtractor(),
-        "llm": LLMService(),
+        # For deployed app, require a real LLM backend (OpenAI or local model).
+        "llm": LLMService(require_llm=True),
     }
 
 
-services = get_services()
+try:
+    services = get_services()
+except Exception as exc:
+    st.error(
+        "LLM initialization failed. Set OPENAI_API_KEY (and optional OPENAI_MODEL) "
+        "in Streamlit secrets/env, or configure a valid local GGUF model path."
+    )
+    st.exception(exc)
+    st.stop()
 
 
 def llm_status_text(llm) -> str:
@@ -28,11 +37,11 @@ def llm_status_text(llm) -> str:
 
     has_local_model = getattr(llm, "has_local_model", None)
     if callable(has_local_model):
-        return "Local model loaded" if has_local_model() else "Fallback summarizer active"
+        return "Local model loaded" if has_local_model() else "No active LLM backend"
 
     check_health = getattr(llm, "check_health", None)
     if callable(check_health):
-        return "Local model loaded" if check_health() else "Fallback summarizer active"
+        return "Local model loaded" if check_health() else "No active LLM backend"
 
     return "LLM status unavailable"
 

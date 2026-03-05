@@ -497,22 +497,70 @@ class DocumentExtractor:
 
 
 class LLMService:
-    def __init__(self, model_path: Optional[str] = None):
+    def __init__(
+        self,
+        model_path: Optional[str] = None,
+        provider: Optional[str] = None,
+        require_llm: Optional[bool] = None,
+    ):
         self.llm = None
+        self.client = None
         self.model_path = model_path or os.getenv(
             "SUMMARIX_MODEL_PATH", "models/llama-3.2-1b-instruct.Q4_K_M.gguf"
         )
+        self.provider = (provider or os.getenv("SUMMARIX_LLM_PROVIDER", "")).strip().lower()
+        self.require_llm = self._env_flag("SUMMARIX_REQUIRE_LLM", default=False) if require_llm is None else bool(require_llm)
         self.mode = "fallback"
-        try:
-            Llama = self._load_llama_class()
+        self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-            if os.path.exists(self.model_path):
-                self.llm = Llama(model_path=self.model_path, n_ctx=2048, n_threads=4, verbose=False)
-                self.mode = "local-llama"
+        if not self.provider:
+            self.provider = "openai" if os.getenv("OPENAI_API_KEY") else "local"
+
+        init_error: Optional[Exception] = None
+        try:
+            if self.provider == "openai":
+                self._init_openai()
+            elif self.provider == "local":
+                self._init_local()
             else:
-                logging.warning("Local model file not found: %s", self.model_path)
+                raise ValueError(
+                    f"Unsupported SUMMARIX_LLM_PROVIDER='{self.provider}'. Use 'openai' or 'local'."
+                )
         except Exception as exc:
-            logging.warning("Local LLM unavailable, fallback summarizer enabled: %s", exc)
+            init_error = exc
+
+        if init_error is not None:
+            if self.require_llm:
+                raise RuntimeError(
+                    "LLM initialization failed. Configure OPENAI_API_KEY (+ optional OPENAI_MODEL) "
+                    "or provide a valid local GGUF model via SUMMARIX_MODEL_PATH."
+                ) from init_error
+            logging.warning("LLM unavailable, fallback summarizer enabled: %s", init_error)
+            self.mode = "fallback"
+
+    @staticmethod
+    def _env_flag(name: str, default: bool = False) -> bool:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    def _init_openai(self):
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY is missing for provider='openai'.")
+
+        from openai import OpenAI
+
+        self.client = OpenAI(api_key=api_key)
+        self.mode = "openai"
+
+    def _init_local(self):
+        Llama = self._load_llama_class()
+        if not os.path.exists(self.model_path):
+            raise FileNotFoundError(f"Local model file not found: {self.model_path}")
+        self.llm = Llama(model_path=self.model_path, n_ctx=2048, n_threads=4, verbose=False)
+        self.mode = "local-llama"
 
     @staticmethod
     def _load_llama_class():
@@ -533,13 +581,18 @@ class LLMService:
             return Llama
 
     def check_health(self) -> bool:
-        return True
+        return self.mode in {"local-llama", "openai"}
 
     def has_local_model(self) -> bool:
-        return self.llm is not None
+        return self.mode == "local-llama"
+
+    def has_active_llm(self) -> bool:
+        return self.mode in {"local-llama", "openai"}
 
     def status_label(self) -> str:
-        if self.has_local_model():
+        if self.mode == "openai":
+            return f"OpenAI model active ({self.openai_model})"
+        if self.mode == "local-llama":
             return "Local model loaded"
         return "Fallback summarizer active"
 
@@ -547,8 +600,62 @@ class LLMService:
         if not text.strip():
             return "No content found for summarization."
 
+        if self.mode == "openai":
+            return self._summarize_openai(text, context)
+
+        if self.mode == "local-llama":
+            return self._summarize_local(text, context)
+
+        if self.require_llm:
+            raise RuntimeError("LLM is required but unavailable. Configure OPENAI_API_KEY or a local GGUF model.")
+
+        return self._fallback_summary(text)
+
+    def _summarize_openai(self, text: str, context: str = "") -> str:
+        if self.client is None:
+            raise RuntimeError("OpenAI client is not initialized.")
+
+        for max_chars in (5200, 3600, 2400):
+            clipped_text = self._truncate_for_context(text, max_chars)
+            user_prompt = (
+                "Write a concise, accurate summary of the provided paper section.\n"
+                f"Context: {context}\n"
+                f"Section text:\n{clipped_text}"
+            )
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.openai_model,
+                    temperature=0.2,
+                    max_tokens=220,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an expert research assistant. Keep summaries factual and concise.",
+                        },
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+                generated = (response.choices[0].message.content or "").strip()
+                if generated:
+                    return generated
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "context" in msg and "length" in msg:
+                    continue
+                if self.require_llm:
+                    raise
+                logging.warning("OpenAI summarization failed, using fallback summary: %s", exc)
+                return self._fallback_summary(text)
+
+        if self.require_llm:
+            raise RuntimeError("OpenAI summarization exceeded context window repeatedly.")
+
+        logging.warning("OpenAI summarization exceeded context window repeatedly, using fallback summary")
+        return self._fallback_summary(text)
+
+    def _summarize_local(self, text: str, context: str = "") -> str:
         if self.llm is None:
-            return self._fallback_summary(text)
+            raise RuntimeError("Local LLM is not initialized.")
 
         # Retry with progressively smaller context windows to avoid token overflow.
         for max_chars in (5200, 3600, 2400):
@@ -569,8 +676,13 @@ class LLMService:
                 msg = str(exc).lower()
                 if "exceed context window" in msg or "context" in msg and "window" in msg:
                     continue
+                if self.require_llm:
+                    raise
                 logging.warning("LLM inference failed, using fallback summary: %s", exc)
                 return self._fallback_summary(text)
+
+        if self.require_llm:
+            raise RuntimeError("Local LLM summarization exceeded context window repeatedly.")
 
         logging.warning("LLM inference exceeded context window repeatedly, using fallback summary")
         return self._fallback_summary(text)

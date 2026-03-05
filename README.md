@@ -39,9 +39,25 @@ Open: <http://127.0.0.1:8513>
 
 This repo includes deployment files:
 
-- `requirements.txt` (installs `streamlit` and `PyMuPDF`)
+- `requirements.txt` (installs `streamlit`, `PyMuPDF`, and `openai`)
 - `runtime.txt` (pins Python `3.12`)
 
 Set app entrypoint to `app.py`.
 
 If local GGUF model files are not present in cloud, the app automatically runs with fallback summarization mode.
+
+
+### Real-Time LLM (No Fallback)
+
+The deployed app now requires a real LLM backend (`require_llm=True`).
+
+For Streamlit Cloud, set these secrets:
+
+```toml
+OPENAI_API_KEY = "your_openai_api_key"
+OPENAI_MODEL = "gpt-4o-mini"  # optional
+SUMMARIX_LLM_PROVIDER = "openai"
+SUMMARIX_REQUIRE_LLM = "true"
+```
+
+If these are missing, the app stops with a clear configuration error instead of using fallback summarization.

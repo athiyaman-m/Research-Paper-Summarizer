@@ -46,18 +46,51 @@ Set app entrypoint to `app.py`.
 
 This deployment is configured to require an active LLM backend (no fallback mode).
 
-
 ### Real-Time LLM (No Fallback)
 
-The deployed app now requires a real LLM backend (`require_llm=True`).
+The app accepts three providers: `openai`, `ollama`, and `local`.
 
-For Streamlit Cloud, set these secrets:
+Base secrets (required):
 
 ```toml
-OPENAI_API_KEY = "your_openai_api_key"
-OPENAI_MODEL = "gpt-4o-mini"  # optional
 SUMMARIX_LLM_PROVIDER = "openai"
 SUMMARIX_REQUIRE_LLM = "true"
 ```
 
-If these are missing, the app stops with a clear configuration error instead of using fallback summarization.
+#### Option A: OpenAI (Cloud)
+
+```toml
+SUMMARIX_LLM_PROVIDER = "openai"
+OPENAI_API_KEY = "your_openai_api_key"
+OPENAI_MODEL = "gpt-4o-mini"  # optional
+```
+
+#### Option B: Ollama (Free, using your local machine)
+
+1. On your local machine, run Ollama and pull a model:
+
+```bash
+ollama serve
+ollama pull llama3.2:3b-instruct
+```
+
+2. Expose local Ollama (`11434`) with a tunnel (Cloudflare or ngrok).
+3. Put the tunnel URL in Streamlit secrets:
+
+```toml
+SUMMARIX_LLM_PROVIDER = "ollama"
+OLLAMA_BASE_URL = "https://your-public-tunnel-url"
+OLLAMA_MODEL = "llama3.2:3b-instruct"
+OLLAMA_TIMEOUT_SEC = "120"
+SUMMARIX_REQUIRE_LLM = "true"
+```
+
+#### Option C: Local GGUF (Run app locally)
+
+```toml
+SUMMARIX_LLM_PROVIDER = "local"
+SUMMARIX_MODEL_PATH = "models/llama-3.2-1b-instruct.Q4_K_M.gguf"
+SUMMARIX_REQUIRE_LLM = "true"
+```
+
+If provider settings are invalid, the app stops with a configuration error instead of fallback summarization.

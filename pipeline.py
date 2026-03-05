@@ -1,10 +1,12 @@
 import ctypes
+import json
 import logging
 import os
 import re
 from pathlib import Path
 from statistics import median
 from typing import Dict, List, Optional
+from urllib import error as urlerror, request as urlrequest
 
 try:
     import pymupdf as fitz
@@ -512,19 +514,29 @@ class LLMService:
         self.require_llm = self._env_flag("SUMMARIX_REQUIRE_LLM", default=False) if require_llm is None else bool(require_llm)
         self.mode = "fallback"
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/")
+        self.ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b-instruct")
+        self.ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT_SEC", "120"))
 
         if not self.provider:
-            self.provider = "openai" if os.getenv("OPENAI_API_KEY") else "local"
+            if os.getenv("OPENAI_API_KEY"):
+                self.provider = "openai"
+            elif self.ollama_base_url:
+                self.provider = "ollama"
+            else:
+                self.provider = "local"
 
         init_error: Optional[Exception] = None
         try:
             if self.provider == "openai":
                 self._init_openai()
+            elif self.provider == "ollama":
+                self._init_ollama()
             elif self.provider == "local":
                 self._init_local()
             else:
                 raise ValueError(
-                    f"Unsupported SUMMARIX_LLM_PROVIDER='{self.provider}'. Use 'openai' or 'local'."
+                    f"Unsupported SUMMARIX_LLM_PROVIDER='{self.provider}'. Use 'openai', 'ollama', or 'local'."
                 )
         except Exception as exc:
             init_error = exc
@@ -533,7 +545,8 @@ class LLMService:
             if self.require_llm:
                 raise RuntimeError(
                     "LLM initialization failed. Configure OPENAI_API_KEY (+ optional OPENAI_MODEL) "
-                    "or provide a valid local GGUF model via SUMMARIX_MODEL_PATH."
+                    "or set OLLAMA_BASE_URL + OLLAMA_MODEL, or provide a valid local GGUF model "
+                    "via SUMMARIX_MODEL_PATH."
                 ) from init_error
             logging.warning("LLM unavailable, fallback summarizer enabled: %s", init_error)
             self.mode = "fallback"
@@ -554,6 +567,24 @@ class LLMService:
 
         self.client = OpenAI(api_key=api_key)
         self.mode = "openai"
+
+    def _init_ollama(self):
+        if not self.ollama_base_url:
+            raise RuntimeError("OLLAMA_BASE_URL is missing for provider='ollama'.")
+
+        tags = self._ollama_get_json("/api/tags")
+        model_names = {
+            str(item.get("name", "")).strip()
+            for item in tags.get("models", [])
+            if isinstance(item, dict)
+        }
+        model_aliases = {name.split(":")[0] for name in model_names if name}
+        if self.ollama_model not in model_names and self.ollama_model not in model_aliases:
+            raise RuntimeError(
+                f"Ollama model '{self.ollama_model}' is not available at {self.ollama_base_url}. "
+                f"Available: {', '.join(sorted(model_names)) or 'none'}"
+            )
+        self.mode = "ollama"
 
     def _init_local(self):
         Llama = self._load_llama_class()
@@ -581,17 +612,19 @@ class LLMService:
             return Llama
 
     def check_health(self) -> bool:
-        return self.mode in {"local-llama", "openai"}
+        return self.mode in {"local-llama", "openai", "ollama"}
 
     def has_local_model(self) -> bool:
         return self.mode == "local-llama"
 
     def has_active_llm(self) -> bool:
-        return self.mode in {"local-llama", "openai"}
+        return self.mode in {"local-llama", "openai", "ollama"}
 
     def status_label(self) -> str:
         if self.mode == "openai":
             return f"OpenAI model active ({self.openai_model})"
+        if self.mode == "ollama":
+            return f"Ollama model active ({self.ollama_model})"
         if self.mode == "local-llama":
             return "Local model loaded"
         return "Fallback summarizer active"
@@ -603,11 +636,17 @@ class LLMService:
         if self.mode == "openai":
             return self._summarize_openai(text, context)
 
+        if self.mode == "ollama":
+            return self._summarize_ollama(text, context)
+
         if self.mode == "local-llama":
             return self._summarize_local(text, context)
 
         if self.require_llm:
-            raise RuntimeError("LLM is required but unavailable. Configure OPENAI_API_KEY or a local GGUF model.")
+            raise RuntimeError(
+                "LLM is required but unavailable. Configure OPENAI_API_KEY, "
+                "or OLLAMA_BASE_URL + OLLAMA_MODEL, or a local GGUF model."
+            )
 
         return self._fallback_summary(text)
 
@@ -653,6 +692,44 @@ class LLMService:
         logging.warning("OpenAI summarization exceeded context window repeatedly, using fallback summary")
         return self._fallback_summary(text)
 
+    def _summarize_ollama(self, text: str, context: str = "") -> str:
+        for max_chars in (5200, 3600, 2400):
+            clipped_text = self._truncate_for_context(text, max_chars)
+            prompt = (
+                "You are an expert research assistant.\n"
+                "Write a concise, accurate summary of the provided paper section.\n"
+                f"Context: {context}\n"
+                f"Section text:\n{clipped_text}\n\n"
+                "Summary:"
+            )
+            try:
+                response = self._ollama_post_json(
+                    "/api/generate",
+                    {
+                        "model": self.ollama_model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {"temperature": 0.2, "num_predict": 220},
+                    },
+                )
+                generated = str(response.get("response", "")).strip()
+                if generated:
+                    return generated
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "context" in msg and ("window" in msg or "length" in msg):
+                    continue
+                if self.require_llm:
+                    raise
+                logging.warning("Ollama summarization failed, using fallback summary: %s", exc)
+                return self._fallback_summary(text)
+
+        if self.require_llm:
+            raise RuntimeError("Ollama summarization exceeded context window repeatedly.")
+
+        logging.warning("Ollama summarization exceeded context window repeatedly, using fallback summary")
+        return self._fallback_summary(text)
+
     def _summarize_local(self, text: str, context: str = "") -> str:
         if self.llm is None:
             raise RuntimeError("Local LLM is not initialized.")
@@ -686,6 +763,42 @@ class LLMService:
 
         logging.warning("LLM inference exceeded context window repeatedly, using fallback summary")
         return self._fallback_summary(text)
+
+    def _ollama_get_json(self, path: str) -> Dict:
+        url = f"{self.ollama_base_url}{path}"
+        req = urlrequest.Request(url, method="GET")
+        try:
+            with urlrequest.urlopen(req, timeout=self.ollama_timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urlerror.URLError as exc:
+            raise RuntimeError(f"Unable to reach Ollama at {url}: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Ollama returned invalid JSON from {url}") from exc
+
+    def _ollama_post_json(self, path: str, payload: Dict) -> Dict:
+        url = f"{self.ollama_base_url}{path}"
+        body = json.dumps(payload).encode("utf-8")
+        req = urlrequest.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urlrequest.urlopen(req, timeout=self.ollama_timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urlerror.HTTPError as exc:
+            details = ""
+            try:
+                details = exc.read().decode("utf-8").strip()
+            except Exception:
+                details = ""
+            extra = f" - {details}" if details else ""
+            raise RuntimeError(f"Ollama API error ({exc.code}) at {url}{extra}") from exc
+        except urlerror.URLError as exc:
+            raise RuntimeError(f"Unable to reach Ollama at {url}: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"Ollama returned invalid JSON from {url}") from exc
 
     @staticmethod
     def _truncate_for_context(text: str, max_chars: int) -> str:

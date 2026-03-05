@@ -14,7 +14,7 @@ st.set_page_config(page_title="Research Paper Summarizer", layout="wide")
 def get_services():
     return {
         "extractor": DocumentExtractor(),
-        # For deployed app, require a real LLM backend (OpenAI or local model).
+        # For deployed app, require a real LLM backend (OpenAI, Ollama, or local model).
         "llm": LLMService(require_llm=True),
     }
 
@@ -23,8 +23,8 @@ try:
     services = get_services()
 except Exception as exc:
     st.error(
-        "LLM initialization failed. Set OPENAI_API_KEY (and optional OPENAI_MODEL) "
-        "in Streamlit secrets/env, or configure a valid local GGUF model path."
+        "LLM initialization failed. Set OPENAI_API_KEY (and optional OPENAI_MODEL), "
+        "or OLLAMA_BASE_URL + OLLAMA_MODEL, or configure a valid local GGUF model path."
     )
     st.exception(exc)
     st.stop()

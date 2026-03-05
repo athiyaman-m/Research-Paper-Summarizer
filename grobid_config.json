@@ -1,0 +1,10 @@
+{
+    "grobid_server": "http://localhost:8070",
+    "timeout": 600,
+    "coordinates": [
+        "p",
+        "s",
+        "fig",
+        "head"
+    ]
+}

@@ -1,0 +1,451 @@
+{
+  "single": {
+    "metadata": {
+      "title": "Longformer: The Long-Document Transformer",
+      "authors": "Iz Beltagy\u2217, Matthew E. Peters\u2217, Arman Cohan\u2217",
+      "year": "2020"
+    },
+    "baseline_summary": "The Longformer model has shown significant improvements over other transformer models on various long document QA tasks, including WikiHop and TriviaQA. The results show that the model can reason over the entire context, which is a key differentiator. The Longformer model has also been found to be stronger on tasks that require long-range context, such as WikiHop. The paper highlights the importance of using pre-training with MLMs and longer training on long-range context for the model to learn to reason effectively. The Longformer model has been pre-trained and finetuned on a variety of downstream tasks, including long document tasks and set new state-of-the-art results on Wik-iHop and TriviaQA.",
+    "structure_summary": "The Longformer model is a transformer-based model designed for long documents, achieving state-of-the-art results on character-level language modeling tasks and outperforming RoBERTa on long document tasks. The model's attention mechanism scales linearly with sequence length, making it scalable for documents of thousands of tokens or longer. Longformer achieves state-of-the-art results on various benchmarks, including text8 and enwik8 datasets. The paper presents Longformer, an encoder-decoder variant of Longformer, which achieves state-of-the-art results on sequence-to-sequence tasks.",
+    "fact_checked_summary": "The Longformer model is a transformer-based model designed for long documents, achieving state-of-the-art results on character-level language modeling tasks and outperforming RoBERTa on long document tasks. The model's attention mechanism scales linearly with sequence length, making it scalable for documents of thousands of tokens or longer. Longformer achieves state-of-the-art results on various benchmarks, including text8 and enwik8 datasets. The paper presents Longformer, an encoder-decoder variant of Longformer, which achieves state-of-the-art results on sequence-to-sequence tasks.",
+    "baseline_metrics": {
+      "rouge1_f1": 0.1277,
+      "rouge2_f1": 0.0483,
+      "rougeL_f1": 0.0747,
+      "semantic_f1_proxy": 0.4532,
+      "factual_score": 0.3235,
+      "contradictions": 0,
+      "section_coverage": 0.6,
+      "graph_coherence": 0.0,
+      "structure_signal": 0.0,
+      "runtime_sec": 151.459
+    },
+    "structure_metrics": {
+      "rouge1_f1": 0.1346,
+      "rouge2_f1": 0.0957,
+      "rougeL_f1": 0.0832,
+      "semantic_f1_proxy": 0.565,
+      "factual_score": 0.5022,
+      "contradictions": 0,
+      "section_coverage": 0.8,
+      "graph_coherence": 0.1663,
+      "structure_signal": 0.1663,
+      "runtime_sec": 237.094
+    },
+    "fact_checked_metrics": {
+      "rouge1_f1": 0.1346,
+      "rouge2_f1": 0.0957,
+      "rougeL_f1": 0.0832,
+      "semantic_f1_proxy": 0.565,
+      "factual_score": 0.5022,
+      "contradictions": 0,
+      "section_coverage": 0.8,
+      "graph_coherence": 0.1663,
+      "structure_signal": 0.1663
+    },
+    "baseline_selected_sections": [
+      "Results",
+      "Abstract",
+      "Results (2)",
+      "Conclusion and Future Work"
+    ],
+    "structure_selected_sections": [
+      "Abstract",
+      "Conclusion and Future Work",
+      "Results",
+      "Results (2)",
+      "Task speci\ufb01c model details",
+      "Autoregressive Language Modeling",
+      "Introduction",
+      "Longformer",
+      "Related Work"
+    ],
+    "baseline_fact_flags": [],
+    "structure_fact_flags": [],
+    "detected_domain": "legal",
+    "domain_summary": "The authors propose a Longformer model, which addresses the scalability limitation of self-attention in transformer-based architectures. By introducing a linearly scaled attention mechanism, the model can process long sequences more efficiently, achieving state-of-the-art results on various character-level language modeling tasks and long document tasks. The authors also pretrain and fine-tune the model on a variety of downstream tasks, demonstrating its effectiveness on downstream tasks. Finally, the authors introduce the Longformer-Encoder-Decoder (LED) variant for long document generative sequence-to-sequence tasks, achieving state-of-the-art results on the arXiv sum- marization dataset. Overall, the proposed Longformer model and its variants outperform previous state-of-the-art models on long document tasks.",
+    "qa_answer": "This paper presents the ETC (Encoding long and structured inputs in transformers) model, which uses a new dilated attention pattern to improve the performance of transformers on long sequences. The model achieves state-of-the-art results on several benchmark datasets, including text8, enwik8, Wiki-Hop, and TriviaQA, and demonstrates the effectiveness of the Longformer-Encoder-Decoder (LED) variant for supporting long document generative sequence-to-sequence tasks.",
+    "future_work": "The provided paper introduces the Longformer, a Transformer architecture that scales linearly with sequence length and is particularly useful for processing long documents. The Longformer combines a local windowed attention with a task-motivated global attention, making it versatile for natural language tasks such as character-level language modeling and document-level NLP tasks. The authors also introduce a Longformer-Encoder-Decoder (LED), a variant of Longformer for support of long document generative sequence-to-sequence tasks. The Longformer's attention mechanism is a drop-in replacement for the standard self-attention and is scalable to long sequences.",
+    "limitations": "The authors propose a modified transformer architecture called Longformer, which has a self-attention operation that scales linearly with the sequence length. This makes it possible to process long documents without the limitations of self-attention, which grows quadratically with sequence length. Longformer achieves state-of-the-art results on a variety of natural language tasks, including document-level NLP, classification, and question answering. It is a versatile architecture that can be used for tasks where existing methods partition or shorten the long context into smaller sequences, and it reduces the computational and memory requirements of existing architectures. The authors also provide a pre-trained Longformer that is fine-tuned on downstream tasks, which sets new state-of-the-art results on some datasets.",
+    "contributions": "Longformer is a transformer-based model that scales linearly with sequence length, making it versatile for processing long documents. It combines local and global information using multiple layers of attention, and achieves state-of-the-art results on character-level language modeling tasks, long document tasks, and document-level NLP tasks.",
+    "section_graph": {
+      "Abstract": [
+        [
+          "Introduction",
+          0.4167955801104972
+        ],
+        [
+          "Conclusion and Future Work",
+          0.36676470588235294
+        ],
+        [
+          "Longformer-Encoder-Decoder (LED)",
+          0.20074303405572758
+        ]
+      ],
+      "Introduction": [
+        [
+          "Related Work",
+          0.4624334600760456
+        ],
+        [
+          "Abstract",
+          0.4167955801104972
+        ],
+        [
+          "Longformer",
+          0.28947176684881604
+        ]
+      ],
+      "Related Work": [
+        [
+          "Introduction",
+          0.4624334600760456
+        ],
+        [
+          "Longformer",
+          0.41744916820702405
+        ],
+        [
+          "Tasks",
+          0.25857142857142856
+        ]
+      ],
+      "Longformer": [
+        [
+          "Related Work",
+          0.41744916820702405
+        ],
+        [
+          "Autoregressive Language Modeling",
+          0.3994488188976378
+        ],
+        [
+          "Implementation Details",
+          0.2979176755447942
+        ]
+      ],
+      "Autoregressive Language Modeling": [
+        [
+          "Results",
+          0.4273198847262248
+        ],
+        [
+          "Longformer",
+          0.3994488188976378
+        ],
+        [
+          "Character LM Hyperparameters",
+          0.2322842639593909
+        ]
+      ],
+      "Results": [
+        [
+          "Autoregressive Language Modeling",
+          0.4273198847262248
+        ],
+        [
+          "Pretraining and Finetuning",
+          0.3707339449541284
+        ],
+        [
+          "Character LM Hyperparameters",
+          0.2528813559322034
+        ]
+      ],
+      "Pretraining and Finetuning": [
+        [
+          "Tasks",
+          0.4054275092936803
+        ],
+        [
+          "Results",
+          0.3707339449541284
+        ],
+        [
+          "Longformer-Encoder-Decoder (LED)",
+          0.24793893129770994
+        ]
+      ],
+      "Tasks": [
+        [
+          "Results (2)",
+          0.4230708661417323
+        ],
+        [
+          "Pretraining and Finetuning",
+          0.4054275092936803
+        ],
+        [
+          "Task speci\ufb01c model details",
+          0.2773509933774834
+        ]
+      ],
+      "Results (2)": [
+        [
+          "Tasks",
+          0.4230708661417323
+        ],
+        [
+          "Longformer-Encoder-Decoder (LED)",
+          0.36909441233140655
+        ],
+        [
+          "Task speci\ufb01c model details",
+          0.25654476670870113
+        ]
+      ],
+      "Longformer-Encoder-Decoder (LED)": [
+        [
+          "Results (2)",
+          0.36909441233140655
+        ],
+        [
+          "Conclusion and Future Work",
+          0.3459190031152648
+        ],
+        [
+          "Task speci\ufb01c model details",
+          0.212484076433121
+        ]
+      ],
+      "Conclusion and Future Work": [
+        [
+          "Longformer-Encoder-Decoder (LED)",
+          0.3459190031152648
+        ],
+        [
+          "Abstract",
+          0.2867647058823529
+        ],
+        [
+          "Acknowledgment",
+          0.2495238095238095
+        ]
+      ],
+      "Acknowledgment": [
+        [
+          "Conclusion and Future Work",
+          0.2495238095238095
+        ],
+        [
+          "References",
+          0.2482449941107185
+        ],
+        [
+          "Implementation Details",
+          0.09030927835051547
+        ]
+      ],
+      "References": [
+        [
+          "Implementation Details",
+          0.2727868852459016
+        ],
+        [
+          "Acknowledgment",
+          0.2482449941107185
+        ],
+        [
+          "Task speci\ufb01c model details",
+          0.16682634730538923
+        ]
+      ],
+      "Implementation Details": [
+        [
+          "Character LM Hyperparameters",
+          0.35178247734138973
+        ],
+        [
+          "References",
+          0.2727868852459016
+        ],
+        [
+          "Longformer",
+          0.2179176755447942
+        ]
+      ],
+      "Character LM Hyperparameters": [
+        [
+          "Implementation Details",
+          0.35178247734138973
+        ],
+        [
+          "Pretraining Data",
+          0.28132231404958674
+        ],
+        [
+          "Task speci\ufb01c model details",
+          0.2285148514851485
+        ]
+      ],
+      "Pretraining Data": [
+        [
+          "Task speci\ufb01c model details",
+          0.2864396284829721
+        ],
+        [
+          "Character LM Hyperparameters",
+          0.28132231404958674
+        ],
+        [
+          "Tasks",
+          0.07836990595611286
+        ]
+      ],
+      "Task speci\ufb01c model details": [
+        [
+          "Pretraining Data",
+          0.2864396284829721
+        ],
+        [
+          "Tasks",
+          0.19735099337748344
+        ],
+        [
+          "Results (2)",
+          0.17654476670870115
+        ]
+      ]
+    },
+    "human_eval_template": [
+      {
+        "criterion": "Informativeness",
+        "baseline_score_1_to_5": "",
+        "proposed_score_1_to_5": "",
+        "notes": ""
+      },
+      {
+        "criterion": "Factual consistency",
+        "baseline_score_1_to_5": "",
+        "proposed_score_1_to_5": "",
+        "notes": ""
+      },
+      {
+        "criterion": "Section coverage",
+        "baseline_score_1_to_5": "",
+        "proposed_score_1_to_5": "",
+        "notes": ""
+      },
+      {
+        "criterion": "Readability",
+        "baseline_score_1_to_5": "",
+        "proposed_score_1_to_5": "",
+        "notes": ""
+      }
+    ]
+  },
+  "phase2_media": {
+    "baseline": {
+      "figure_count": 0,
+      "table_count": 0,
+      "media_total": 0,
+      "figure_coverage": 0.0,
+      "table_coverage": 0.0,
+      "figure_caption_quality": 0.0,
+      "table_preview_quality": 0.0,
+      "figure_alignment": 0.0,
+      "table_alignment": 0.0,
+      "media_in_core_sections": 0.0,
+      "media_density_per_page": 0.0,
+      "phase2_media_score": 0.0,
+      "per_item": []
+    },
+    "proposed": {
+      "figure_count": 4,
+      "table_count": 0,
+      "media_total": 4,
+      "figure_coverage": 1.0,
+      "table_coverage": 0.0,
+      "figure_caption_quality": 1.0,
+      "table_preview_quality": 0.0,
+      "figure_alignment": 0.5,
+      "table_alignment": 0.0,
+      "media_in_core_sections": 0.0,
+      "media_density_per_page": 0.2353,
+      "phase2_media_score": 0.4875,
+      "per_item": [
+        {
+          "id": "figure_3_1",
+          "type": "figure",
+          "page": 3,
+          "assigned_sections": [
+            "Related Work",
+            "Longformer"
+          ],
+          "description": "Image extracted from page 3"
+        },
+        {
+          "id": "figure_3_2",
+          "type": "figure",
+          "page": 3,
+          "assigned_sections": [
+            "Related Work",
+            "Longformer"
+          ],
+          "description": "Image extracted from page 3"
+        },
+        {
+          "id": "figure_3_3",
+          "type": "figure",
+          "page": 3,
+          "assigned_sections": [
+            "Related Work",
+            "Longformer"
+          ],
+          "description": "Image extracted from page 3"
+        },
+        {
+          "id": "figure_3_4",
+          "type": "figure",
+          "page": 3,
+          "assigned_sections": [
+            "Related Work",
+            "Longformer"
+          ],
+          "description": "Image extracted from page 3"
+        }
+      ]
+    },
+    "improvement": {
+      "figure_count": 4,
+      "table_count": 0,
+      "media_total": 4,
+      "figure_coverage": 1.0,
+      "table_coverage": 0.0,
+      "figure_caption_quality": 1.0,
+      "table_preview_quality": 0.0,
+      "figure_alignment": 0.5,
+      "table_alignment": 0.0,
+      "media_in_core_sections": 0.0,
+      "media_density_per_page": 0.2353,
+      "phase2_media_score": 0.4875
+    }
+  },
+  "multi": {
+    "combined_summary": "The Longformer model is a significant improvement over traditional transformer-based models in long-document tasks. It achieves state-of-the-art results on text8 and enwik8 datasets with a small BPC of 1.10 and 1.00 respectively, outperforming comparable sparse transformer models. The unique attention mechanism scales linearly with sequence length, making it suitable for long documents. The Longformer-Encoder-Decoder variant demonstrates further effectiveness, and its results match or exceed prior work. The paper concludes that Longformer is a viable solution for long document tasks.",
+    "common_findings": [
+      "attention",
+      "al",
+      "et",
+      "longformer",
+      "model",
+      "1",
+      "2019",
+      "2020",
+      "roberta",
+      "sequence",
+      "long",
+      "2"
+    ],
+    "differences": [
+      "Longformer: The Long-Document Transformer: The Longformer model is a significant improvement over traditional transformer-based models, particularly in the context of long-document tasks. It achieves state-of-the-art results on text8 and enwik8 datasets with a small BPC of 1.10 and 1.00 respectively, and outperforms the comparable sparse transformer model on these tasks. The Longformer's attention mechanism is a key innovation, allowing it to process documents of thousands of tokens or longer. The model is pretrained and fine-tuned on a variety of downstream tasks, including Wiki-Hop and TriviaQA, demonstrating its effectiveness in long document generative sequence-to-sequence tasks. Longformer-Encoder-Decoder variant is also introduced, which further enhances its performance on long document tasks. Overall, Longformer is a powerful tool for processing long documents, and its pretraining and fine-tuning paradigm makes it an attractive solution for various",
+      "Longformer: The Long-Document Transformer: This paper presents Longformer, a transformer-based model that is specifically designed to handle long sequences of documents. Longformer is shown to outperform the pre-trained and fine-tuned versions of prior work on a variety of tasks, including long document tasks and tasks related to text classification and question answering. The model uses a unique attention mechanism that scales linearly with sequence length, making it suitable for long documents. The Longformer-Encoder-Decoder (LED) variant is also introduced, which provides support for long document generative sequence-to-sequence tasks. The results show that Longformer achieves state-of-the-art performance on long document tasks and matches the performance of other models that have more than twice the number of parameters. The paper concludes that Longformer is a viable solution for long document tasks and provides a new paradigm for pre-training and finetuning transformer models.",
+      "Longformer: The Long-Document Transformer: In this paper, the authors present the Longformer, a Transformer-based model designed to process long sequences such as documents. They show that Longformer can achieve state-of-the-art results on several language modeling tasks, including text8 and enwik8. In contrast, prior work has struggled to process long sequences due to the self-attention operation's quadratic scaling. The authors introduce a new attention mechanism that scales linearly with sequence length, making it easier to process documents of thousands of tokens or longer. They also evaluate Longformer on downstream tasks, achieving state-of-the-art results on Wiki-Hop and TriviaQA. Finally, the authors introduce the Longformer-Encoder-Decoder (LED) for long document generative sequence-to-sequence tasks, demonstrating its effectiveness on the arXiv sum- marization dataset. Overall, the authors' results demonstrate the effectiveness of the Longformer model in"
+    ],
+    "trends": [
+      "2020: 3 paper(s)"
+    ]
+  },
+  "metric_table": "Metric            | Baseline | Structure-aware | Fact-checked\n------------------+----------+-----------------+-------------\nrouge1_f1         | 0.1277   | 0.1346          | 0.1346      \nrouge2_f1         | 0.0483   | 0.0957          | 0.0957      \nrougeL_f1         | 0.0747   | 0.0832          | 0.0832      \nsemantic_f1_proxy | 0.4532   | 0.565           | 0.565       \nfactual_score     | 0.3235   | 0.5022          | 0.5022      \ncontradictions    | 0        | 0               | 0           \nsection_coverage  | 0.6      | 0.8             | 0.8         \ngraph_coherence   | 0.0      | 0.1663          | 0.1663      \nstructure_signal  | 0.0      | 0.1663          | 0.1663      \nruntime_sec       | 151.459  | 237.094         | -           "
+}

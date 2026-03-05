@@ -1,0 +1,14 @@
+Use these commands from terminal:
+
+Go to project folder:
+cd "/home/cdac/Office-Projects/Research-Paper-Summarizer"
+
+Run the app (recommended command):
+.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8513
+
+Open in browser:
+http://127.0.0.1:8513
+
+If port 8513 is busy, change it (for example --server.port 8514).
+
+To stop the app: press Ctrl + C in that terminal.

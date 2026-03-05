@@ -1,0 +1,19 @@
+version: '3'
+services:
+  grobid:
+    image: grobid/grobid:0.8.0
+    ports:
+      - "8070:8070"
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8070/api/isalive"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s

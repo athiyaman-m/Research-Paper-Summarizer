@@ -1,0 +1,40 @@
+
+ Structured Summary
+=====================
+Title: Example Research Paper
+Authors: Sample Author et al. (2024)
+
+Research Question / Objective:
+Introduction
+Transformers (Vaswani et al., 2017) have achieved
+state-of-the-art results in a wide range of natu-
+ral language tasks including generative language
+modeling (Dai et al., 2019; Radford et al., 2019)
+and discriminative language understanding (De-
+vlin et al., 2019). This success is partl
+
+Methodology Summary:
+N/A
+
+Key Results / Findings:
+Results
+Main Result
+Tab. 7 summarizes the results of all
+our ﬁnetuning experiments. We observe that Long-
+former consistently outperforms the RoBERTa
+baseline. Its performance gain is especially ob-
+vious for tasks that require long context such as
+WikiHop and Hyperpartisan. For TriviaQA, the
+improv
+
+Contributions:
+N/A
+
+Limitations / Future Work:
+Conclusion and Future Work
+We present Longformer, a transformer-based model
+that is scalable for processing long documents
+and that makes it easy to perform a wide range
+of document-level NLP tasks without chunk-
+ing/shortening the long input and without com-
+plex architecture to combine information

@@ -1,0 +1,32 @@
+Paper metadata
+ Title: Longformer: The Long-Document Transformer
+ Authors: Matthew E. Peters∗ ; Arman Cohan∗
+ Year: 2020
+
+Research Question / Objective
+Longformer is an advan-                tage for natural language tasks such as long docu-     
+         ment classiﬁcation, question answering (QA), and coreference resolution. We evaluate
+Longformer on autoregressivecharacter-level language modeling using a com-              
+ bination of windowed and a new dilated attentionpattern. After pretraining, we apply it to
+downstream language tasks through ﬁnetuning and demonstrating that Longformer consistently
+outperforms RoBERTa.
+
+Methodology Summary
+We evaluate on IMDB (Maas et al., 2011) and Hy-perpartisan news detection. We used three
+datasets: WikiHop, TriviaQA, and HotpotQA. Both models are trained for 65K gradient updates
+with sequences of 4,096 tokens.
+
+Key Results / Findings
+All published top performing models in. this task (Tu et al., 2019; Fang et al. 2020; Shao.et
+al., 2020) use GNNs (Kipf and Welling, 2017) or graph network of entities. This seems to encode
+an important inductive bias for the task and can po-tentially improve our results further.
+
+Contributions
+Longformer is a transformer-based model that is scalable for processing long documents.
+Longformer employs an attentionpattern that combines local and global information. When
+pretrained, Longformer con-sistently outperforms RoBERTa on long documenttasks.
+
+Limitations / Future Work / Research Gap
+Longformer is a transformer-based model that is scalable for processing long documents.
+Longformer employs an attentionpattern that combines local and global information. When
+pretrained, Longformer con-sistently outperforms RoBERTa on long documenttasks.

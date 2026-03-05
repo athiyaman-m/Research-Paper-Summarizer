@@ -9,7 +9,13 @@ from typing import Dict, List, Optional
 try:
     import pymupdf as fitz
 except ImportError:
-    import fitz
+    try:
+        import fitz
+    except ImportError as exc:
+        raise ImportError(
+            "PyMuPDF is required but not installed. Add 'PyMuPDF' to requirements.txt "
+            "for Streamlit deployment."
+        ) from exc
 
 
 

@@ -33,3 +33,15 @@ Open: <http://127.0.0.1:8513>
 
 - Local virtual environment and model binaries are excluded via `.gitignore`.
 - Figures/tables under `outputs/` are included for publication readiness.
+
+
+## Streamlit Cloud Deployment
+
+This repo includes deployment files:
+
+- `requirements.txt` (installs `streamlit` and `PyMuPDF`)
+- `runtime.txt` (pins Python `3.12`)
+
+Set app entrypoint to `app.py`.
+
+If local GGUF model files are not present in cloud, the app automatically runs with fallback summarization mode.

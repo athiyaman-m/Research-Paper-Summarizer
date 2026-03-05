@@ -1,4 +1,7 @@
-import fitz
+try:
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 import json
 
 def analyze_pdf(pdf_path):

@@ -44,7 +44,7 @@ This repo includes deployment files:
 
 Set app entrypoint to `app.py`.
 
-If local GGUF model files are not present in cloud, the app automatically runs with fallback summarization mode.
+This deployment is configured to require an active LLM backend (no fallback mode).
 
 
 ### Real-Time LLM (No Fallback)

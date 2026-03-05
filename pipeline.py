@@ -519,10 +519,11 @@ class LLMService:
         self.ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT_SEC", "120"))
 
         if not self.provider:
-            if os.getenv("OPENAI_API_KEY"):
-                self.provider = "openai"
-            elif self.ollama_base_url:
+            # Prefer Ollama when configured to avoid accidental OpenAI quota failures.
+            if self.ollama_base_url:
                 self.provider = "ollama"
+            elif os.getenv("OPENAI_API_KEY"):
+                self.provider = "openai"
             else:
                 self.provider = "local"
 

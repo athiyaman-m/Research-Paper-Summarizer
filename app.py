@@ -1,4 +1,5 @@
 import logging
+import os
 import tempfile
 from html import escape
 
@@ -10,21 +11,34 @@ from pipeline import DocumentExtractor, LLMService
 st.set_page_config(page_title="Research Paper Summarizer", layout="wide")
 
 
+def llm_config_signature() -> tuple:
+    return (
+        os.getenv("SUMMARIX_LLM_PROVIDER", "").strip().lower(),
+        "1" if bool(os.getenv("OPENAI_API_KEY")) else "0",
+        os.getenv("OPENAI_MODEL", ""),
+        os.getenv("OLLAMA_BASE_URL", "").strip(),
+        os.getenv("OLLAMA_MODEL", ""),
+        os.getenv("SUMMARIX_MODEL_PATH", ""),
+        os.getenv("SUMMARIX_REQUIRE_LLM", "").strip().lower(),
+    )
+
+
 @st.cache_resource
-def get_services():
+def get_services(config_signature: tuple):
+    provider = config_signature[0] or None
     return {
         "extractor": DocumentExtractor(),
         # For deployed app, require a real LLM backend (OpenAI, Ollama, or local model).
-        "llm": LLMService(require_llm=True),
+        "llm": LLMService(provider=provider, require_llm=True),
     }
 
 
 try:
-    services = get_services()
+    services = get_services(llm_config_signature())
 except Exception as exc:
     st.error(
-        "LLM initialization failed. Set OPENAI_API_KEY (and optional OPENAI_MODEL), "
-        "or OLLAMA_BASE_URL + OLLAMA_MODEL, or configure a valid local GGUF model path."
+        "LLM initialization failed. Set SUMMARIX_LLM_PROVIDER='ollama' with OLLAMA_BASE_URL + OLLAMA_MODEL, "
+        "or configure OpenAI keys, or a valid local GGUF model path."
     )
     st.exception(exc)
     st.stop()
@@ -150,7 +164,19 @@ def section_summary(title: str, section: dict, metadata: dict) -> str:
 
     text = " ".join(section.get("chunks", [])[:3]) or section.get("content", "")
     context = f"{metadata.get('title', 'Paper')} -> {title}"
-    summary = services["llm"].summarize(text, context)
+
+    try:
+        summary = services["llm"].summarize(text, context)
+    except Exception as exc:
+        msg = str(exc)
+        lowered = msg.lower()
+        if "insufficient_quota" in lowered or "rate" in lowered and "429" in lowered:
+            msg = (
+                "OpenAI quota/rate-limit error. Switch Streamlit secrets to "
+                "SUMMARIX_LLM_PROVIDER='ollama' with OLLAMA_BASE_URL + OLLAMA_MODEL."
+            )
+        summary = f"LLM error: {msg}"
+
     cache[title] = summary
     return summary
 
@@ -257,6 +283,8 @@ def main():
         st.markdown("Upload a PDF to extract metadata and section wise content.")
         uploaded_file = st.file_uploader("Upload Paper (PDF)", type=["pdf"])
         st.markdown("---")
+        configured_provider = os.getenv("SUMMARIX_LLM_PROVIDER", "auto") or "auto"
+        st.markdown(f"**Configured Provider**: `{configured_provider}`")
         st.markdown(f"**LLM**: {llm_status_text(services['llm'])}")
         st.markdown("**Section Parser**: Active")
 

@@ -57,6 +57,8 @@ SUMMARIX_LLM_PROVIDER = "openai"
 SUMMARIX_REQUIRE_LLM = "true"
 ```
 
+Always set `SUMMARIX_LLM_PROVIDER` explicitly and reboot the Streamlit app after changing secrets.
+
 #### Option A: OpenAI (Cloud)
 
 ```toml

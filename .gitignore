@@ -37,3 +37,7 @@ grobid_output/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Allow workspace git setting for this repo
+!.vscode/
+!.vscode/settings.json

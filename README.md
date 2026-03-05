@@ -48,51 +48,46 @@ This deployment is configured to require an active LLM backend (no fallback mode
 
 ### Real-Time LLM (No Fallback)
 
-The app accepts three providers: `openai`, `ollama`, and `local`.
+The UI now lets users choose LLM provider directly: `LLaMA`, `Gemini`, or `Groq`.
 
-Base secrets (required):
+- `LLaMA` uses `ollama` backend if `OLLAMA_BASE_URL` exists, otherwise `local` GGUF backend.
+- `Gemini` uses `GEMINI_API_KEY`.
+- `Groq` uses `GROQ_API_KEY`.
+
+Place API keys in **Streamlit Cloud -> App settings -> Secrets** (or `.streamlit/secrets.toml` for local run).
+
+Base flags:
 
 ```toml
-SUMMARIX_LLM_PROVIDER = "openai"
 SUMMARIX_REQUIRE_LLM = "true"
 ```
 
-Always set `SUMMARIX_LLM_PROVIDER` explicitly and reboot the Streamlit app after changing secrets.
-
-#### Option A: OpenAI (Cloud)
+#### Option A: Gemini
 
 ```toml
-SUMMARIX_LLM_PROVIDER = "openai"
-OPENAI_API_KEY = "your_openai_api_key"
-OPENAI_MODEL = "gpt-4o-mini"  # optional
+GEMINI_API_KEY = "your_gemini_api_key"
+GEMINI_MODEL = "gemini-2.0-flash"
 ```
 
-#### Option B: Ollama (Free, using your local machine)
-
-1. On your local machine, run Ollama and pull a model:
-
-```bash
-ollama serve
-ollama pull llama3.2:3b-instruct
-```
-
-2. Expose local Ollama (`11434`) with a tunnel (Cloudflare or ngrok).
-3. Put the tunnel URL in Streamlit secrets:
+#### Option B: Groq
 
 ```toml
-SUMMARIX_LLM_PROVIDER = "ollama"
+GROQ_API_KEY = "your_groq_api_key"
+GROQ_MODEL = "llama-3.1-8b-instant"
+```
+
+#### Option C: LLaMA with Ollama (free via your local system + tunnel)
+
+```toml
 OLLAMA_BASE_URL = "https://your-public-tunnel-url"
 OLLAMA_MODEL = "llama3.2:3b-instruct"
 OLLAMA_TIMEOUT_SEC = "120"
-SUMMARIX_REQUIRE_LLM = "true"
 ```
 
-#### Option C: Local GGUF (Run app locally)
+#### Option D: LLaMA local GGUF (run app on same machine)
 
 ```toml
-SUMMARIX_LLM_PROVIDER = "local"
 SUMMARIX_MODEL_PATH = "models/llama-3.2-1b-instruct.Q4_K_M.gguf"
-SUMMARIX_REQUIRE_LLM = "true"
 ```
 
-If provider settings are invalid, the app stops with a configuration error instead of fallback summarization.
+If provider secrets are missing/invalid, the app shows a clear provider-specific initialization error.

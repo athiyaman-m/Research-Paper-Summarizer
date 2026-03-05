@@ -11,54 +11,33 @@ from pipeline import DocumentExtractor, LLMService
 st.set_page_config(page_title="Research Paper Summarizer", layout="wide")
 
 
-LLM_PROVIDER_OPTIONS = ("LLaMA", "Gemini", "Groq")
-LLM_DEFAULT_MODELS = {
-    "LLaMA": os.getenv("OLLAMA_MODEL", "llama3.2:3b-instruct"),
-    "Gemini": os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-    "Groq": os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
-}
-
+DEFAULT_LLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 services = {}
 
 
-def resolve_provider_config(provider_label: str, model_name: str) -> dict:
-    model = model_name.strip() or LLM_DEFAULT_MODELS.get(provider_label, "")
-    if provider_label == "LLaMA":
-        # Prefer Ollama when configured; otherwise use local GGUF runtime.
-        runtime_provider = "ollama" if os.getenv("OLLAMA_BASE_URL", "").strip() else "local"
-        return {"provider": runtime_provider, "label": provider_label, "model": model}
-    if provider_label == "Gemini":
-        return {"provider": "gemini", "label": provider_label, "model": model}
-    if provider_label == "Groq":
-        return {"provider": "groq", "label": provider_label, "model": model}
-    return {"provider": "local", "label": "LLaMA", "model": LLM_DEFAULT_MODELS["LLaMA"]}
+def resolve_runtime_config(model_name: str) -> dict:
+    model = model_name.strip() or DEFAULT_LLAMA_MODEL
+    runtime_provider = "ollama" if os.getenv("OLLAMA_BASE_URL", "").strip() else "local"
+    return {"provider": runtime_provider, "model": model}
 
 
 def llm_config_signature(config: dict) -> tuple:
     return (
         config.get("provider", ""),
-        config.get("label", ""),
         config.get("model", ""),
         os.getenv("OLLAMA_BASE_URL", "").strip(),
         os.getenv("SUMMARIX_MODEL_PATH", ""),
-        "1" if bool(os.getenv("OPENAI_API_KEY")) else "0",
-        "1" if bool(os.getenv("GEMINI_API_KEY")) else "0",
-        "1" if bool(os.getenv("GROQ_API_KEY")) else "0",
         os.getenv("SUMMARIX_REQUIRE_LLM", "").strip().lower(),
     )
 
 
 @st.cache_resource
 def get_services(config_signature: tuple):
-    provider, _label, model = config_signature[:3]
+    provider, model = config_signature[:2]
     llm_kwargs = {"provider": provider, "require_llm": True}
 
     if provider == "ollama":
         llm_kwargs["ollama_model"] = model
-    elif provider == "gemini":
-        llm_kwargs["gemini_model"] = model
-    elif provider == "groq":
-        llm_kwargs["groq_model"] = model
 
     return {
         "extractor": DocumentExtractor(),
@@ -69,16 +48,10 @@ def get_services(config_signature: tuple):
 def llm_init_help(provider: str) -> str:
     if provider == "ollama":
         return (
-            "LLM initialization failed for LLaMA (Ollama). Set OLLAMA_BASE_URL + OLLAMA_MODEL "
-            "in Streamlit secrets, and keep your Ollama+tunnel process running."
+            "LLaMA initialization failed for Ollama mode. Set OLLAMA_BASE_URL + OLLAMA_MODEL in secrets, "
+            "and keep local Ollama + tunnel running."
         )
-    if provider == "local":
-        return "LLM initialization failed for local LLaMA. Set a valid SUMMARIX_MODEL_PATH to a GGUF file."
-    if provider == "gemini":
-        return "LLM initialization failed for Gemini. Set GEMINI_API_KEY (and optional GEMINI_MODEL)."
-    if provider == "groq":
-        return "LLM initialization failed for Groq. Set GROQ_API_KEY (and optional GROQ_MODEL)."
-    return "LLM initialization failed. Check your provider secrets and model settings."
+    return "LLaMA initialization failed for local mode. Set a valid SUMMARIX_MODEL_PATH GGUF file."
 
 
 def llm_status_text(llm) -> str:
@@ -209,7 +182,7 @@ def section_summary(title: str, section: dict, metadata: dict) -> str:
         lowered = msg.lower()
         active_mode = getattr(services.get("llm"), "mode", "provider")
         if "429" in lowered or "quota" in lowered or "rate" in lowered:
-            msg = f"{active_mode} quota/rate-limit reached. Choose another provider from the sidebar."
+            msg = f"{active_mode} quota/rate-limit reached. Check Ollama/tunnel status and retry."
         summary = f"LLM error: {msg}"
 
     cache[title] = summary
@@ -315,46 +288,35 @@ def main():
 
     render_styles()
 
-    env_provider = os.getenv("SUMMARIX_LLM_PROVIDER", "").strip().lower()
-    env_to_label = {
-        "ollama": "LLaMA",
-        "local": "LLaMA",
-        "gemini": "Gemini",
-        "groq": "Groq",
-    }
-    default_label = env_to_label.get(env_provider, "LLaMA")
-    default_index = LLM_PROVIDER_OPTIONS.index(default_label)
-
     with st.sidebar:
         st.markdown("### Research Paper Summarizer")
-        st.markdown("Upload a PDF, choose LLM provider, and generate section-wise summaries.")
-
-        provider_label = st.selectbox("LLM Provider", LLM_PROVIDER_OPTIONS, index=default_index)
+        st.markdown("Upload a PDF and summarize sections using LLaMA.")
 
         model_name = st.text_input(
-            "Model Name",
-            value=LLM_DEFAULT_MODELS.get(provider_label, ""),
-            help="Set exact model ID for the selected provider.",
+            "LLaMA Model Name",
+            value=DEFAULT_LLAMA_MODEL,
+            help="Use an Ollama model tag, for example llama3.2:3b.",
         )
 
-        provider_config = resolve_provider_config(provider_label, model_name)
+        runtime_config = resolve_runtime_config(model_name)
+        runtime_provider = runtime_config["provider"]
 
-        if provider_config["provider"] == "local":
-            st.caption("LLaMA is using local GGUF backend because OLLAMA_BASE_URL is not configured.")
-        elif provider_config["provider"] == "ollama":
-            st.caption("LLaMA is using Ollama API backend.")
+        if runtime_provider == "local":
+            st.caption("Runtime: Local GGUF (OLLAMA_BASE_URL not set).")
+        else:
+            st.caption("Runtime: Ollama API (for deployed app).")
 
         uploaded_file = st.file_uploader("Upload Paper (PDF)", type=["pdf"])
 
         st.markdown("---")
-        st.markdown(f"**Selected Provider**: `{provider_label}`")
-        st.markdown(f"**Runtime Backend**: `{provider_config['provider']}`")
+        st.markdown("**Selected LLM**: `LLaMA`")
+        st.markdown(f"**Runtime Backend**: `{runtime_provider}`")
 
-    config_signature = llm_config_signature(provider_config)
+    config_signature = llm_config_signature(runtime_config)
     try:
         services = get_services(config_signature)
     except Exception as exc:
-        st.error(llm_init_help(provider_config["provider"]))
+        st.error(llm_init_help(runtime_provider))
         st.exception(exc)
         return
 

@@ -504,14 +504,9 @@ class LLMService:
         model_path: Optional[str] = None,
         provider: Optional[str] = None,
         require_llm: Optional[bool] = None,
-        openai_model: Optional[str] = None,
         ollama_model: Optional[str] = None,
-        gemini_model: Optional[str] = None,
-        groq_model: Optional[str] = None,
     ):
         self.llm = None
-        self.client = None
-
         self.model_path = model_path or os.getenv(
             "SUMMARIX_MODEL_PATH", "models/llama-3.2-1b-instruct.Q4_K_M.gguf"
         )
@@ -519,45 +514,23 @@ class LLMService:
         self.require_llm = self._env_flag("SUMMARIX_REQUIRE_LLM", default=False) if require_llm is None else bool(require_llm)
         self.mode = "fallback"
 
-        self.openai_model = openai_model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/")
-        self.ollama_model = ollama_model or os.getenv("OLLAMA_MODEL", "llama3.2:3b-instruct")
+        self.ollama_model = ollama_model or os.getenv("OLLAMA_MODEL", "llama3.2:3b")
         self.ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT_SEC", "120"))
 
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip()
-        self.gemini_model = gemini_model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-
-        self.groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
-        self.groq_model = groq_model or os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-
         if not self.provider:
-            if self.ollama_base_url:
-                self.provider = "ollama"
-            elif self.gemini_api_key:
-                self.provider = "gemini"
-            elif self.groq_api_key:
-                self.provider = "groq"
-            elif os.getenv("OPENAI_API_KEY"):
-                self.provider = "openai"
-            else:
-                self.provider = "local"
+            # Auto mode: use Ollama if URL exists, otherwise use local GGUF runtime.
+            self.provider = "ollama" if self.ollama_base_url else "local"
 
         init_error: Optional[Exception] = None
         try:
-            if self.provider == "openai":
-                self._init_openai()
-            elif self.provider == "ollama":
+            if self.provider == "ollama":
                 self._init_ollama()
-            elif self.provider == "gemini":
-                self._init_gemini()
-            elif self.provider == "groq":
-                self._init_groq()
             elif self.provider == "local":
                 self._init_local()
             else:
                 raise ValueError(
-                    f"Unsupported SUMMARIX_LLM_PROVIDER='{self.provider}'. "
-                    "Use 'local', 'ollama', 'gemini', 'groq', or 'openai'."
+                    f"Unsupported SUMMARIX_LLM_PROVIDER='{self.provider}'. Use 'ollama' or 'local'."
                 )
         except Exception as exc:
             init_error = exc
@@ -565,12 +538,8 @@ class LLMService:
         if init_error is not None:
             if self.require_llm:
                 raise RuntimeError(
-                    "LLM initialization failed. Configure one provider: "
-                    "(1) local GGUF via SUMMARIX_MODEL_PATH, "
-                    "(2) ollama via OLLAMA_BASE_URL + OLLAMA_MODEL, "
-                    "(3) gemini via GEMINI_API_KEY + GEMINI_MODEL, "
-                    "(4) groq via GROQ_API_KEY + GROQ_MODEL, "
-                    "or (5) openai via OPENAI_API_KEY + OPENAI_MODEL."
+                    "LLaMA initialization failed. Configure OLLAMA_BASE_URL + OLLAMA_MODEL, "
+                    "or provide a valid local GGUF model via SUMMARIX_MODEL_PATH."
                 ) from init_error
             logging.warning("LLM unavailable, fallback summarizer enabled: %s", init_error)
             self.mode = "fallback"
@@ -581,16 +550,6 @@ class LLMService:
         if raw is None:
             return default
         return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-    def _init_openai(self):
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY is missing for provider='openai'.")
-
-        from openai import OpenAI
-
-        self.client = OpenAI(api_key=api_key)
-        self.mode = "openai"
 
     def _init_ollama(self):
         if not self.ollama_base_url:
@@ -609,16 +568,6 @@ class LLMService:
                 f"Available: {', '.join(sorted(model_names)) or 'none'}"
             )
         self.mode = "ollama"
-
-    def _init_gemini(self):
-        if not self.gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY is missing for provider='gemini'.")
-        self.mode = "gemini"
-
-    def _init_groq(self):
-        if not self.groq_api_key:
-            raise RuntimeError("GROQ_API_KEY is missing for provider='groq'.")
-        self.mode = "groq"
 
     def _init_local(self):
         Llama = self._load_llama_class()
@@ -646,23 +595,17 @@ class LLMService:
             return Llama
 
     def check_health(self) -> bool:
-        return self.mode in {"local-llama", "ollama", "gemini", "groq", "openai"}
+        return self.mode in {"local-llama", "ollama"}
 
     def has_local_model(self) -> bool:
         return self.mode == "local-llama"
 
     def has_active_llm(self) -> bool:
-        return self.mode in {"local-llama", "ollama", "gemini", "groq", "openai"}
+        return self.mode in {"local-llama", "ollama"}
 
     def status_label(self) -> str:
-        if self.mode == "openai":
-            return f"OpenAI model active ({self.openai_model})"
         if self.mode == "ollama":
             return f"Ollama model active ({self.ollama_model})"
-        if self.mode == "gemini":
-            return f"Gemini model active ({self.gemini_model})"
-        if self.mode == "groq":
-            return f"Groq model active ({self.groq_model})"
         if self.mode == "local-llama":
             return "Local LLaMA model loaded"
         return "Fallback summarizer active"
@@ -671,65 +614,18 @@ class LLMService:
         if not text.strip():
             return "No content found for summarization."
 
-        if self.mode == "openai":
-            return self._summarize_openai(text, context)
         if self.mode == "ollama":
             return self._summarize_ollama(text, context)
-        if self.mode == "gemini":
-            return self._summarize_gemini(text, context)
-        if self.mode == "groq":
-            return self._summarize_groq(text, context)
+
         if self.mode == "local-llama":
             return self._summarize_local(text, context)
 
         if self.require_llm:
             raise RuntimeError(
-                "LLM is required but unavailable. Configure one provider: "
-                "local GGUF, Ollama, Gemini, Groq, or OpenAI."
+                "LLaMA is required but unavailable. Configure OLLAMA_BASE_URL + OLLAMA_MODEL, "
+                "or local GGUF via SUMMARIX_MODEL_PATH."
             )
 
-        return self._fallback_summary(text)
-
-    def _summarize_openai(self, text: str, context: str = "") -> str:
-        if self.client is None:
-            raise RuntimeError("OpenAI client is not initialized.")
-
-        for max_chars in (5200, 3600, 2400):
-            clipped_text = self._truncate_for_context(text, max_chars)
-            user_prompt = (
-                "Write a concise, accurate summary of the provided paper section.\n"
-                f"Context: {context}\n"
-                f"Section text:\n{clipped_text}"
-            )
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.openai_model,
-                    temperature=0.2,
-                    max_tokens=220,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an expert research assistant. Keep summaries factual and concise.",
-                        },
-                        {"role": "user", "content": user_prompt},
-                    ],
-                )
-                generated = (response.choices[0].message.content or "").strip()
-                if generated:
-                    return generated
-            except Exception as exc:
-                msg = str(exc).lower()
-                if "context" in msg and "length" in msg:
-                    continue
-                if self.require_llm:
-                    raise
-                logging.warning("OpenAI summarization failed, using fallback summary: %s", exc)
-                return self._fallback_summary(text)
-
-        if self.require_llm:
-            raise RuntimeError("OpenAI summarization exceeded context window repeatedly.")
-
-        logging.warning("OpenAI summarization exceeded context window repeatedly, using fallback summary")
         return self._fallback_summary(text)
 
     def _summarize_ollama(self, text: str, context: str = "") -> str:
@@ -768,94 +664,6 @@ class LLMService:
             raise RuntimeError("Ollama summarization exceeded context window repeatedly.")
 
         logging.warning("Ollama summarization exceeded context window repeatedly, using fallback summary")
-        return self._fallback_summary(text)
-
-    def _summarize_gemini(self, text: str, context: str = "") -> str:
-        for max_chars in (5200, 3600, 2400):
-            clipped_text = self._truncate_for_context(text, max_chars)
-            prompt = (
-                "You are an expert research assistant. "
-                "Write a concise, factual summary for the provided paper section.\n"
-                f"Context: {context}\n"
-                f"Section text:\n{clipped_text}"
-            )
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 220},
-            }
-            url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"{self.gemini_model}:generateContent?key={self.gemini_api_key}"
-            )
-            try:
-                response = self._http_post_json(url, payload)
-                candidates = response.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        generated = str(parts[0].get("text", "")).strip()
-                        if generated:
-                            return generated
-            except Exception as exc:
-                msg = str(exc).lower()
-                if "context" in msg and ("window" in msg or "length" in msg):
-                    continue
-                if self.require_llm:
-                    raise
-                logging.warning("Gemini summarization failed, using fallback summary: %s", exc)
-                return self._fallback_summary(text)
-
-        if self.require_llm:
-            raise RuntimeError("Gemini summarization exceeded context window repeatedly.")
-
-        logging.warning("Gemini summarization exceeded context window repeatedly, using fallback summary")
-        return self._fallback_summary(text)
-
-    def _summarize_groq(self, text: str, context: str = "") -> str:
-        for max_chars in (5200, 3600, 2400):
-            clipped_text = self._truncate_for_context(text, max_chars)
-            prompt = (
-                "Write a concise, accurate summary of the provided paper section.\n"
-                f"Context: {context}\n"
-                f"Section text:\n{clipped_text}"
-            )
-            payload = {
-                "model": self.groq_model,
-                "temperature": 0.2,
-                "max_tokens": 220,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an expert research assistant. Keep summaries factual and concise.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-            }
-            headers = {"Authorization": f"Bearer {self.groq_api_key}"}
-            try:
-                response = self._http_post_json(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    payload,
-                    headers=headers,
-                )
-                choices = response.get("choices", [])
-                if choices:
-                    generated = str(choices[0].get("message", {}).get("content", "")).strip()
-                    if generated:
-                        return generated
-            except Exception as exc:
-                msg = str(exc).lower()
-                if "context" in msg and ("window" in msg or "length" in msg):
-                    continue
-                if self.require_llm:
-                    raise
-                logging.warning("Groq summarization failed, using fallback summary: %s", exc)
-                return self._fallback_summary(text)
-
-        if self.require_llm:
-            raise RuntimeError("Groq summarization exceeded context window repeatedly.")
-
-        logging.warning("Groq summarization exceeded context window repeatedly, using fallback summary")
         return self._fallback_summary(text)
 
     def _summarize_local(self, text: str, context: str = "") -> str:

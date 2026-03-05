@@ -39,55 +39,33 @@ Open: <http://127.0.0.1:8513>
 
 This repo includes deployment files:
 
-- `requirements.txt` (installs `streamlit`, `PyMuPDF`, and `openai`)
+- `requirements.txt` (installs `streamlit` and `PyMuPDF`)
 - `runtime.txt` (pins Python `3.12`)
 
 Set app entrypoint to `app.py`.
 
 This deployment is configured to require an active LLM backend (no fallback mode).
 
-### Real-Time LLM (No Fallback)
+### Real-Time LLaMA (No Fallback)
 
-The UI now lets users choose LLM provider directly: `LLaMA`, `Gemini`, or `Groq`.
+This app is now **LLaMA-only**.
 
-- `LLaMA` uses `ollama` backend if `OLLAMA_BASE_URL` exists, otherwise `local` GGUF backend.
-- `Gemini` uses `GEMINI_API_KEY`.
-- `Groq` uses `GROQ_API_KEY`.
+- If `OLLAMA_BASE_URL` is set, it uses **Ollama API** (recommended for deployed Streamlit).
+- If `OLLAMA_BASE_URL` is empty, it uses **local GGUF** model path.
 
-Place API keys in **Streamlit Cloud -> App settings -> Secrets** (or `.streamlit/secrets.toml` for local run).
-
-Base flags:
+Set secrets in **Streamlit Cloud -> App settings -> Secrets** (or `.streamlit/secrets.toml` locally):
 
 ```toml
 SUMMARIX_REQUIRE_LLM = "true"
-```
 
-#### Option A: Gemini
+# optional explicit backend: ollama or local
+SUMMARIX_LLM_PROVIDER = "ollama"
 
-```toml
-GEMINI_API_KEY = "your_gemini_api_key"
-GEMINI_MODEL = "gemini-2.0-flash"
-```
-
-#### Option B: Groq
-
-```toml
-GROQ_API_KEY = "your_groq_api_key"
-GROQ_MODEL = "llama-3.1-8b-instant"
-```
-
-#### Option C: LLaMA with Ollama (free via your local system + tunnel)
-
-```toml
 OLLAMA_BASE_URL = "https://your-public-tunnel-url"
-OLLAMA_MODEL = "llama3.2:3b-instruct"
+OLLAMA_MODEL = "llama3.2:3b"
 OLLAMA_TIMEOUT_SEC = "120"
-```
 
-#### Option D: LLaMA local GGUF (run app on same machine)
-
-```toml
 SUMMARIX_MODEL_PATH = "models/llama-3.2-1b-instruct.Q4_K_M.gguf"
 ```
 
-If provider secrets are missing/invalid, the app shows a clear provider-specific initialization error.
+If Ollama is unreachable or model path is missing, app shows a clear LLaMA initialization error.

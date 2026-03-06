@@ -178,11 +178,7 @@ def section_summary(title: str, section: dict, metadata: dict) -> str:
     try:
         summary = services["llm"].summarize(text, context)
     except Exception as exc:
-        msg = str(exc)
-        lowered = msg.lower()
-        active_mode = getattr(services.get("llm"), "mode", "provider")
-        if "429" in lowered or "quota" in lowered or "rate" in lowered:
-            msg = f"{active_mode} quota/rate-limit reached. Check Ollama/tunnel status and retry."
+        msg = str(exc).strip() or "Unknown LLM failure."
         summary = f"LLM error: {msg}"
 
     cache[title] = summary

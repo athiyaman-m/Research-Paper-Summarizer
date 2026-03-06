@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 from pathlib import Path
 from statistics import median
 from typing import Dict, List, Optional
@@ -516,7 +517,10 @@ class LLMService:
 
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/")
         self.ollama_model = ollama_model or os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-        self.ollama_timeout = int(os.getenv("OLLAMA_TIMEOUT_SEC", "120"))
+        self.ollama_timeout = self._env_int("OLLAMA_TIMEOUT_SEC", default=120, minimum=20)
+        self.ollama_num_ctx = self._env_int("OLLAMA_NUM_CTX", default=2048, minimum=512)
+        self.ollama_max_input_chars = self._env_int("OLLAMA_MAX_INPUT_CHARS", default=12000, minimum=2000)
+        self.ollama_max_retries = self._env_int("OLLAMA_MAX_RETRIES", default=3, minimum=1)
 
         if not self.provider:
             # Auto mode: use Ollama if URL exists, otherwise use local GGUF runtime.
@@ -550,6 +554,17 @@ class LLMService:
         if raw is None:
             return default
         return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    @staticmethod
+    def _env_int(name: str, default: int, minimum: int = 1) -> int:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            value = int(str(raw).strip())
+        except ValueError:
+            return default
+        return max(value, minimum)
 
     def _init_ollama(self):
         if not self.ollama_base_url:
@@ -629,7 +644,12 @@ class LLMService:
         return self._fallback_summary(text)
 
     def _summarize_ollama(self, text: str, context: str = "") -> str:
-        for max_chars in (5200, 3600, 2400):
+        max_chars_seq = [
+            self.ollama_max_input_chars,
+            int(self.ollama_max_input_chars * 0.75),
+            int(self.ollama_max_input_chars * 0.5),
+        ]
+        for max_chars in max_chars_seq:
             clipped_text = self._truncate_for_context(text, max_chars)
             prompt = (
                 "You are an expert research assistant.\n"
@@ -639,15 +659,7 @@ class LLMService:
                 "Summary:"
             )
             try:
-                response = self._ollama_post_json(
-                    "/api/generate",
-                    {
-                        "model": self.ollama_model,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {"temperature": 0.2, "num_predict": 220},
-                    },
-                )
+                response = self._generate_with_ollama(prompt)
                 generated = str(response.get("response", "")).strip()
                 if generated:
                     return generated
@@ -665,6 +677,39 @@ class LLMService:
 
         logging.warning("Ollama summarization exceeded context window repeatedly, using fallback summary")
         return self._fallback_summary(text)
+
+    def _generate_with_ollama(self, prompt: str) -> Dict:
+        payload = {
+            "model": self.ollama_model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.2,
+                "num_predict": 220,
+                "num_ctx": self.ollama_num_ctx,
+            },
+        }
+        last_error: Optional[Exception] = None
+        for attempt in range(1, self.ollama_max_retries + 1):
+            try:
+                return self._ollama_post_json("/api/generate", payload)
+            except Exception as exc:
+                last_error = exc
+                msg = str(exc).lower()
+                transient = (
+                    "http error (500)" in msg
+                    or "http error (502)" in msg
+                    or "http error (503)" in msg
+                    or "http error (504)" in msg
+                    or "timed out" in msg
+                    or "temporary" in msg
+                    or "connection reset" in msg
+                )
+                if transient and attempt < self.ollama_max_retries:
+                    time.sleep(min(1.5 * attempt, 5.0))
+                    continue
+                raise RuntimeError(f"Ollama generate failed: {exc}") from exc
+        raise RuntimeError(f"Ollama generate failed: {last_error}")
 
     def _summarize_local(self, text: str, context: str = "") -> str:
         if self.llm is None:
@@ -702,6 +747,9 @@ class LLMService:
 
     def _http_get_json(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict:
         merged_headers = {"Content-Type": "application/json"}
+        if "ngrok" in url:
+            # Avoid ngrok browser warning/interstitial on free tunnels for API calls.
+            merged_headers["ngrok-skip-browser-warning"] = "1"
         if headers:
             merged_headers.update(headers)
         req = urlrequest.Request(url, method="GET", headers=merged_headers)
@@ -729,6 +777,9 @@ class LLMService:
     ) -> Dict:
         body = json.dumps(payload).encode("utf-8")
         merged_headers = {"Content-Type": "application/json"}
+        if "ngrok" in url:
+            # Avoid ngrok browser warning/interstitial on free tunnels for API calls.
+            merged_headers["ngrok-skip-browser-warning"] = "1"
         if headers:
             merged_headers.update(headers)
         req = urlrequest.Request(url, data=body, method="POST", headers=merged_headers)

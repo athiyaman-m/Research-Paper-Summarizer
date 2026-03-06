@@ -64,6 +64,9 @@ SUMMARIX_LLM_PROVIDER = "ollama"
 OLLAMA_BASE_URL = "https://your-public-tunnel-url"
 OLLAMA_MODEL = "llama3.2:3b"
 OLLAMA_TIMEOUT_SEC = "120"
+OLLAMA_NUM_CTX = "2048"
+OLLAMA_MAX_INPUT_CHARS = "12000"
+OLLAMA_MAX_RETRIES = "3"
 
 SUMMARIX_MODEL_PATH = "models/llama-3.2-1b-instruct.Q4_K_M.gguf"
 ```

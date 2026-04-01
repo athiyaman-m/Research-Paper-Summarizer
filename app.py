@@ -86,79 +86,117 @@ def llm_status_text(llm) -> str:
 # ── CSS ──────────────────────────────────────────────────────────────────────
 
 def render_styles():
-    theme = st.session_state.get("app_theme", "light")
-    is_dark = theme == "dark"
     st.markdown(
-        f"""
+        """
         <style>
         @import url("https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap");
         @import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css");
 
-        :root {{
-            --bg-primary:    {"#0f1117" if is_dark else "#ffffff"};
-            --bg-secondary:  {"#1a1d27" if is_dark else "#f8fbff"};
-            --bg-card:       {"#1e2130" if is_dark else "#ffffff"};
-            --bg-panel:      {"#252838" if is_dark else "#f4f8fe"};
-            --border:        {"#2d3148" if is_dark else "#dbe4f0"};
-            --text-primary:  {"#e2e8f0" if is_dark else "#0f172a"};
-            --text-secondary:{"#94a3b8" if is_dark else "#334155"};
-            --text-muted:    {"#64748b" if is_dark else "#475569"};
-            --accent:        {"#60a5fa" if is_dark else "#3b82f6"};
-            --hero-bg:       {"linear-gradient(120deg, #1a1d27 0%, #252838 100%)" if is_dark else "linear-gradient(120deg, #f8fbff 0%, #eef4fb 100%)"};
-            --table-even:    {"#1a1d27" if is_dark else "#f8fbff"};
-            --table-header:  {"#252838" if is_dark else "#eef4fb"};
-        }}
+        /* ── Light theme (default) ── */
+        :root {
+            --bg-primary:    #ffffff;
+            --bg-secondary:  #f8fbff;
+            --bg-card:       #ffffff;
+            --bg-panel:      #f4f8fe;
+            --border:        #dbe4f0;
+            --text-primary:  #0f172a;
+            --text-secondary:#334155;
+            --text-muted:    #475569;
+            --accent:        #3b82f6;
+            --hero-bg:       linear-gradient(120deg, #f8fbff 0%, #eef4fb 100%);
+            --table-even:    #f8fbff;
+            --table-header:  #eef4fb;
+        }
 
-        html, body, [class*="css"] {{ font-family: "Public Sans", sans-serif; }}
+        /* ── Dark theme ── */
+        [data-theme="dark"] {
+            --bg-primary:    #0f1117;
+            --bg-secondary:  #1a1d27;
+            --bg-card:       #1e2130;
+            --bg-panel:      #252838;
+            --border:        #2d3148;
+            --text-primary:  #e2e8f0;
+            --text-secondary:#94a3b8;
+            --text-muted:    #64748b;
+            --accent:        #60a5fa;
+            --hero-bg:       linear-gradient(120deg, #1a1d27 0%, #252838 100%);
+            --table-even:    #1a1d27;
+            --table-header:  #252838;
+        }
 
-        .hero {{
+        html, body, [class*="css"] { font-family: "Public Sans", sans-serif; }
+
+        .hero {
             border: 1px solid var(--border);
             background: var(--hero-bg);
             border-radius: 16px; padding: 20px; margin-bottom: 18px;
-        }}
-        .hero h1 {{ margin: 0; color: var(--text-primary); font-size: 1.8rem; }}
-        .hero p  {{ margin: 8px 0 0 0; color: var(--text-secondary); }}
+        }
+        .hero h1 { margin: 0; color: var(--text-primary); font-size: 1.8rem; }
+        .hero p  { margin: 8px 0 0 0; color: var(--text-secondary); }
 
-        .meta-card {{
+        .meta-card {
             border: 1px solid var(--border); border-radius: 14px;
             background: var(--bg-card); padding: 18px; margin-bottom: 16px;
-        }}
-        .meta-row {{ display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px; color: var(--text-primary); }}
-        .meta-key {{ color: var(--text-muted); font-weight: 600; }}
+        }
+        .meta-row { display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px; color: var(--text-primary); }
+        .meta-key { color: var(--text-muted); font-weight: 600; }
 
-        .section-info {{ display: flex; gap: 18px; color: var(--text-secondary); margin-bottom: 10px; font-size: 0.92rem; }}
+        .section-info { display: flex; gap: 18px; color: var(--text-secondary); margin-bottom: 10px; font-size: 0.92rem; }
 
-        .panel {{ border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--bg-card); }}
-        .panel-title {{ font-weight: 700; margin-bottom: 10px; color: var(--text-primary); }}
+        .panel { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--bg-card); }
+        .panel-title { font-weight: 700; margin-bottom: 10px; color: var(--text-primary); }
 
-        .source-box {{ height: 440px; overflow-y: auto; line-height: 1.65; color: var(--text-primary); font-size: 0.95rem; white-space: normal; }}
-        .summary-box {{ min-height: 220px; line-height: 1.7; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 12px; }}
+        .source-box { height: 440px; overflow-y: auto; line-height: 1.65; color: var(--text-primary); font-size: 0.95rem; white-space: normal; }
+        .summary-box { min-height: 220px; line-height: 1.7; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 12px; }
 
         /* Comparison table */
-        .cmp-table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
-        .cmp-table th, .cmp-table td {{ border: 1px solid var(--border); padding: 10px 14px; text-align: left; font-size: 0.93rem; }}
-        .cmp-table th {{ background: var(--table-header); font-weight: 700; color: var(--text-primary); }}
-        .cmp-table td {{ color: var(--text-primary); }}
-        .cmp-table tr:nth-child(even) td {{ background: var(--table-even); }}
+        .cmp-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .cmp-table th, .cmp-table td { border: 1px solid var(--border); padding: 10px 14px; text-align: left; font-size: 0.93rem; }
+        .cmp-table th { background: var(--table-header); font-weight: 700; color: var(--text-primary); }
+        .cmp-table td { color: var(--text-primary); }
+        .cmp-table tr:nth-child(even) td { background: var(--table-even); }
 
         /* Citation list */
-        .cite-item {{ padding: 10px 14px; border-bottom: 1px solid var(--border); line-height: 1.6; color: var(--text-primary); font-size: 0.93rem; }}
-        .cite-num  {{ font-weight: 700; color: var(--accent); margin-right: 8px; }}
+        .cite-item { padding: 10px 14px; border-bottom: 1px solid var(--border); line-height: 1.6; color: var(--text-primary); font-size: 0.93rem; }
+        .cite-num  { font-weight: 700; color: var(--accent); margin-right: 8px; }
 
         /* Figure gallery */
-        .fig-gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }}
-        .fig-card {{ border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg-card); text-align: center; }}
-        .fig-card img {{ max-width: 100%; border-radius: 8px; }}
-        .fig-label {{ margin-top: 8px; font-weight: 600; color: var(--text-primary); font-size: 0.9rem; }}
+        .fig-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
+        .fig-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg-card); text-align: center; }
+        .fig-card img { max-width: 100%; border-radius: 8px; }
+        .fig-label { margin-top: 8px; font-weight: 600; color: var(--text-primary); font-size: 0.9rem; }
 
-        /* Theme toggle button */
-        .theme-pill {{
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600;
-            background: var(--bg-panel); color: var(--text-secondary);
-            border: 1px solid var(--border); cursor: pointer;
-        }}
+        /* Floating theme toggle */
+        #theme-toggle-btn {
+            position: fixed; top: 14px; right: 18px; z-index: 99999;
+            width: 40px; height: 40px; border-radius: 50%;
+            border: 1px solid var(--border); background: var(--bg-card);
+            color: var(--text-primary); font-size: 1.15rem;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+        }
+        #theme-toggle-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
         </style>
+
+        <!-- Floating theme toggle button (pure JS, no rerun) -->
+        <div id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle dark/light theme">🌓</div>
+        <script>
+        (function(){
+            const saved = localStorage.getItem('app_theme');
+            if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
+        })();
+        function toggleTheme(){
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if(isDark){
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('app_theme','light');
+            } else {
+                document.documentElement.setAttribute('data-theme','dark');
+                localStorage.setItem('app_theme','dark');
+            }
+        }
+        </script>
         """,
         unsafe_allow_html=True,
     )
@@ -488,14 +526,6 @@ def main():
     with st.sidebar:
         st.markdown("### 📄 Research Paper Summarizer")
         st.markdown("Upload PDFs to analyze, compare, and summarize research papers.")
-
-        # Theme toggle
-        if "app_theme" not in st.session_state:
-            st.session_state["app_theme"] = "light"
-        theme_label = "🌙 Dark Mode" if st.session_state["app_theme"] == "light" else "☀️ Light Mode"
-        if st.button(theme_label, key="theme_toggle", use_container_width=True):
-            st.session_state["app_theme"] = "dark" if st.session_state["app_theme"] == "light" else "light"
-            st.rerun()
 
         st.markdown("---")
 

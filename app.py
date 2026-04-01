@@ -478,7 +478,7 @@ def main():
         st.markdown("Upload PDFs to analyze, compare, and summarize.")
 
         # Dark mode toggle — small native toggle, no state loss
-        is_dark = st.toggle("🌙 Dark Mode", value=False, key="dark_mode_toggle")
+        is_dark = st.toggle("Dark Mode", value=False, key="dark_mode_toggle")
         render_styles(is_dark)
 
         st.markdown("---")
@@ -507,18 +507,18 @@ def main():
             st.caption("Runtime: Ollama API")
 
         uploaded_files = st.file_uploader(
-            "Upload Papers (PDF)",
+            "Upload arXiv Papers (PDF)",
             type=["pdf"],
             accept_multiple_files=True,
         )
 
-        st.markdown("---")
-        st.markdown("**Supported Documents**")
-        st.caption("📄 arXiv Papers (Best)")
-        st.caption("📄 IEEE / ACM / Springer")
-        st.caption("📄 Conference & Journal PDFs")
-        st.caption("📄 Thesis & Dissertations")
-        st.caption("📄 General Research PDFs")
+        # st.markdown("---")
+        # st.markdown("**Supported Documents**")
+        # st.caption("📄 arXiv Papers (Best)")
+        # st.caption("📄 IEEE / ACM / Springer")
+        # st.caption("📄 Conference & Journal PDFs")
+        # st.caption("📄 Thesis & Dissertations")
+        # st.caption("📄 General Research PDFs")
 
         st.markdown("---")
         st.markdown(f"**Runtime Backend**: `{runtime_provider}`")

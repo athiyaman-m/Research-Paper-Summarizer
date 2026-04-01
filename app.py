@@ -23,7 +23,8 @@ def resolve_runtime_config(model_name: str) -> dict:
     elif os.getenv("OLLAMA_BASE_URL", "").strip():
         runtime_provider = "ollama"
     else:
-        runtime_provider = "local"
+        # Default to groq even if key is absent — LLMService will raise a clear error
+        runtime_provider = "groq"
     return {"provider": runtime_provider, "model": model}
 
 
@@ -41,7 +42,8 @@ def llm_config_signature(config: dict) -> tuple:
 @st.cache_resource
 def get_services(config_signature: tuple):
     provider = config_signature[0]
-    llm_kwargs = {"provider": provider, "require_llm": True}
+    # require_llm=False so LLMService falls back gracefully; we surface errors in main()
+    llm_kwargs = {"provider": provider, "require_llm": False}
 
     if provider == "ollama":
         llm_kwargs["ollama_model"] = config_signature[1]
@@ -55,8 +57,10 @@ def get_services(config_signature: tuple):
 def llm_init_help(provider: str) -> str:
     if provider == "groq":
         return (
-            "Groq API initialization failed. Check that GROQ_API_KEY is set correctly in Streamlit secrets "
-            "and that you have a valid Groq account."
+            "⚠️ **Groq API key not found or invalid.** "
+            "Go to your Streamlit Cloud app → **Settings → Secrets** and add:\n"
+            "```toml\n[secrets]\nGROQ_API_KEY = \"your-groq-api-key-here\"\n```\n"
+            "Get a free key at https://console.groq.com"
         )
     if provider == "ollama":
         return (
@@ -328,6 +332,15 @@ def main():
     except Exception as exc:
         st.error(llm_init_help(runtime_provider))
         st.exception(exc)
+        return
+
+    # Warn (non-fatal) if LLM is in fallback mode — key is missing but app still loads
+    llm = services.get("llm")
+    if llm and getattr(llm, "mode", "") == "fallback":
+        st.warning(
+            llm_init_help(runtime_provider),
+            icon="⚠️",
+        )
         return
 
     if st.session_state.get("llm_signature") != config_signature:

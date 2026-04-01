@@ -17,7 +17,13 @@ services = {}
 
 def resolve_runtime_config(model_name: str) -> dict:
     model = model_name.strip() or DEFAULT_LLAMA_MODEL
-    runtime_provider = "ollama" if os.getenv("OLLAMA_BASE_URL", "").strip() else "local"
+    groq_key = os.getenv("GROQ_API_KEY", "").strip()
+    if groq_key:
+        runtime_provider = "groq"
+    elif os.getenv("OLLAMA_BASE_URL", "").strip():
+        runtime_provider = "ollama"
+    else:
+        runtime_provider = "local"
     return {"provider": runtime_provider, "model": model}
 
 
@@ -25,6 +31,7 @@ def llm_config_signature(config: dict) -> tuple:
     return (
         config.get("provider", ""),
         config.get("model", ""),
+        os.getenv("GROQ_API_KEY", "").strip(),
         os.getenv("OLLAMA_BASE_URL", "").strip(),
         os.getenv("SUMMARIX_MODEL_PATH", ""),
         os.getenv("SUMMARIX_REQUIRE_LLM", "").strip().lower(),
@@ -33,11 +40,11 @@ def llm_config_signature(config: dict) -> tuple:
 
 @st.cache_resource
 def get_services(config_signature: tuple):
-    provider, model = config_signature[:2]
+    provider = config_signature[0]
     llm_kwargs = {"provider": provider, "require_llm": True}
 
     if provider == "ollama":
-        llm_kwargs["ollama_model"] = model
+        llm_kwargs["ollama_model"] = config_signature[1]
 
     return {
         "extractor": DocumentExtractor(),
@@ -46,6 +53,11 @@ def get_services(config_signature: tuple):
 
 
 def llm_init_help(provider: str) -> str:
+    if provider == "groq":
+        return (
+            "Groq API initialization failed. Check that GROQ_API_KEY is set correctly in Streamlit secrets "
+            "and that you have a valid Groq account."
+        )
     if provider == "ollama":
         return (
             "LLaMA initialization failed for Ollama mode. Set OLLAMA_BASE_URL + OLLAMA_MODEL in secrets, "
@@ -297,7 +309,9 @@ def main():
         runtime_config = resolve_runtime_config(model_name)
         runtime_provider = runtime_config["provider"]
 
-        if runtime_provider == "local":
+        if runtime_provider == "groq":
+            st.caption("Runtime: Groq API ☁️ (fast, no tunnel needed).")
+        elif runtime_provider == "local":
             st.caption("Runtime: Local GGUF (OLLAMA_BASE_URL not set).")
         else:
             st.caption("Runtime: Ollama API (for deployed app).")

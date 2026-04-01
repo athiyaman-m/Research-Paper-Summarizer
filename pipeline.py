@@ -515,6 +515,14 @@ class LLMService:
         self.require_llm = self._env_flag("SUMMARIX_REQUIRE_LLM", default=False) if require_llm is None else bool(require_llm)
         self.mode = "fallback"
 
+        # Groq settings
+        self.groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
+        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.2-3b-preview")
+        self.groq_max_input_chars = self._env_int("GROQ_MAX_INPUT_CHARS", default=12000, minimum=2000)
+        self.groq_max_retries = self._env_int("GROQ_MAX_RETRIES", default=3, minimum=1)
+        self._groq_client = None
+
+        # Ollama settings
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/")
         self.ollama_model = ollama_model or os.getenv("OLLAMA_MODEL", "llama3.2:3b")
         self.ollama_timeout = self._env_int("OLLAMA_TIMEOUT_SEC", default=120, minimum=20)
@@ -523,18 +531,25 @@ class LLMService:
         self.ollama_max_retries = self._env_int("OLLAMA_MAX_RETRIES", default=3, minimum=1)
 
         if not self.provider:
-            # Auto mode: use Ollama if URL exists, otherwise use local GGUF runtime.
-            self.provider = "ollama" if self.ollama_base_url else "local"
+            # Auto mode: Groq > Ollama > local GGUF
+            if self.groq_api_key:
+                self.provider = "groq"
+            elif self.ollama_base_url:
+                self.provider = "ollama"
+            else:
+                self.provider = "local"
 
         init_error: Optional[Exception] = None
         try:
-            if self.provider == "ollama":
+            if self.provider == "groq":
+                self._init_groq()
+            elif self.provider == "ollama":
                 self._init_ollama()
             elif self.provider == "local":
                 self._init_local()
             else:
                 raise ValueError(
-                    f"Unsupported SUMMARIX_LLM_PROVIDER='{self.provider}'. Use 'ollama' or 'local'."
+                    f"Unsupported SUMMARIX_LLM_PROVIDER='{self.provider}'. Use 'groq', 'ollama', or 'local'."
                 )
         except Exception as exc:
             init_error = exc
@@ -542,8 +557,8 @@ class LLMService:
         if init_error is not None:
             if self.require_llm:
                 raise RuntimeError(
-                    "LLaMA initialization failed. Configure OLLAMA_BASE_URL + OLLAMA_MODEL, "
-                    "or provide a valid local GGUF model via SUMMARIX_MODEL_PATH."
+                    "LLM initialization failed. Set GROQ_API_KEY for Groq, or OLLAMA_BASE_URL + OLLAMA_MODEL "
+                    "for Ollama, or provide a valid local GGUF model via SUMMARIX_MODEL_PATH."
                 ) from init_error
             logging.warning("LLM unavailable, fallback summarizer enabled: %s", init_error)
             self.mode = "fallback"
@@ -565,6 +580,20 @@ class LLMService:
         except ValueError:
             return default
         return max(value, minimum)
+
+    def _init_groq(self):
+        if not self.groq_api_key:
+            raise RuntimeError("GROQ_API_KEY is missing for provider='groq'.")
+        try:
+            from groq import Groq
+            self._groq_client = Groq(api_key=self.groq_api_key)
+            # Quick validation: list models to confirm the key is valid
+            self._groq_client.models.list()
+        except ImportError as exc:
+            raise RuntimeError("groq package is not installed. Add 'groq>=0.11,<1' to requirements.txt.") from exc
+        except Exception as exc:
+            raise RuntimeError(f"Groq API initialization failed: {exc}") from exc
+        self.mode = "groq"
 
     def _init_ollama(self):
         if not self.ollama_base_url:
@@ -619,6 +648,8 @@ class LLMService:
         return self.mode in {"local-llama", "ollama"}
 
     def status_label(self) -> str:
+        if self.mode == "groq":
+            return f"Groq API active ({self.groq_model})"
         if self.mode == "ollama":
             return f"Ollama model active ({self.ollama_model})"
         if self.mode == "local-llama":
@@ -629,6 +660,9 @@ class LLMService:
         if not text.strip():
             return "No content found for summarization."
 
+        if self.mode == "groq":
+            return self._summarize_groq(text, context)
+
         if self.mode == "ollama":
             return self._summarize_ollama(text, context)
 
@@ -637,10 +671,68 @@ class LLMService:
 
         if self.require_llm:
             raise RuntimeError(
-                "LLaMA is required but unavailable. Configure OLLAMA_BASE_URL + OLLAMA_MODEL, "
+                "LLM is required but unavailable. Set GROQ_API_KEY, OLLAMA_BASE_URL + OLLAMA_MODEL, "
                 "or local GGUF via SUMMARIX_MODEL_PATH."
             )
 
+        return self._fallback_summary(text)
+
+    def _summarize_groq(self, text: str, context: str = "") -> str:
+        if self._groq_client is None:
+            raise RuntimeError("Groq client is not initialized.")
+
+        max_chars_seq = [
+            self.groq_max_input_chars,
+            int(self.groq_max_input_chars * 0.75),
+            int(self.groq_max_input_chars * 0.5),
+        ]
+        last_error: Optional[Exception] = None
+        for max_chars in max_chars_seq:
+            clipped_text = self._truncate_for_context(text, max_chars)
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are an expert research assistant. Write concise, accurate summaries of research paper sections.",
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Context: {context}\n"
+                        f"Section text:\n{clipped_text}\n\n"
+                        "Write a concise summary of the above section:"
+                    ),
+                },
+            ]
+            for attempt in range(1, self.groq_max_retries + 1):
+                try:
+                    response = self._groq_client.chat.completions.create(
+                        model=self.groq_model,
+                        messages=messages,
+                        max_tokens=300,
+                        temperature=0.2,
+                    )
+                    generated = response.choices[0].message.content.strip()
+                    if generated:
+                        return generated
+                except Exception as exc:
+                    last_error = exc
+                    msg = str(exc).lower()
+                    # Context-length errors: retry with smaller input
+                    if "context" in msg and ("length" in msg or "window" in msg or "token" in msg):
+                        break
+                    # Rate-limit: wait and retry
+                    if "rate" in msg and attempt < self.groq_max_retries:
+                        time.sleep(min(2.0 * attempt, 8.0))
+                        continue
+                    if self.require_llm:
+                        raise RuntimeError(f"Groq summarization failed: {exc}") from exc
+                    logging.warning("Groq summarization failed, using fallback: %s", exc)
+                    return self._fallback_summary(text)
+
+        if self.require_llm and last_error:
+            raise RuntimeError(f"Groq summarization failed after retries: {last_error}")
+
+        logging.warning("Groq summarization failed after retries, using fallback summary")
         return self._fallback_summary(text)
 
     def _summarize_ollama(self, text: str, context: str = "") -> str:

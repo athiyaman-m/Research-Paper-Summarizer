@@ -12,3 +12,14 @@ http://127.0.0.1:8513
 If port 8513 is busy, change it (for example --server.port 8514).
 
 To stop the app: press Ctrl + C in that terminal.
+
+through steamlit im sharing to client and public use - for that, to access the ollama model - i want to keep on run it in my virtual server - 
+
+--------------------------------------------------------------------------------
+
+OLLAMA_BASE_URL = "https://jasmin-pulverulent-rimosely.ngrok-free.dev"
+OLLAMA_MODEL = "llama3.2:3b"
+OLLAMA_TIMEOUT_SEC = "180"
+OLLAMA_NUM_CTX = "2048"
+OLLAMA_MAX_INPUT_CHARS = "12000"
+OLLAMA_MAX_RETRIES = "3"

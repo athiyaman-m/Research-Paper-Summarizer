@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 import tempfile
@@ -5,7 +6,7 @@ from html import escape
 
 import streamlit as st
 
-from pipeline import DocumentExtractor, LLMService
+from pipeline import DocumentExtractor, LLMService, crop_figure
 
 
 st.set_page_config(page_title="Research Paper Summarizer", layout="wide")
@@ -14,6 +15,8 @@ st.set_page_config(page_title="Research Paper Summarizer", layout="wide")
 DEFAULT_LLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 services = {}
 
+
+# ── Config helpers ───────────────────────────────────────────────────────────
 
 def resolve_runtime_config(model_name: str) -> dict:
     model = model_name.strip() or DEFAULT_LLAMA_MODEL
@@ -44,10 +47,8 @@ def get_services(config_signature: tuple):
     provider = config_signature[0]
     # require_llm=False so LLMService falls back gracefully; we surface errors in main()
     llm_kwargs = {"provider": provider, "require_llm": False}
-
     if provider == "ollama":
         llm_kwargs["ollama_model"] = config_signature[1]
-
     return {
         "extractor": DocumentExtractor(),
         "llm": LLMService(**llm_kwargs),
@@ -59,7 +60,7 @@ def llm_init_help(provider: str) -> str:
         return (
             "⚠️ **Groq API key not found or invalid.** "
             "Go to your Streamlit Cloud app → **Settings → Secrets** and add:\n"
-            "```toml\n[secrets]\nGROQ_API_KEY = \"your-groq-api-key-here\"\n```\n"
+            '```toml\n[secrets]\nGROQ_API_KEY = "your-groq-api-key-here"\n```\n'
             "Get a free key at https://console.groq.com"
         )
     if provider == "ollama":
@@ -74,17 +75,13 @@ def llm_status_text(llm) -> str:
     status_method = getattr(llm, "status_label", None)
     if callable(status_method):
         return status_method()
-
-    has_local_model = getattr(llm, "has_local_model", None)
-    if callable(has_local_model):
-        return "Local model loaded" if has_local_model() else "No active LLM backend"
-
     check_health = getattr(llm, "check_health", None)
     if callable(check_health):
-        return "Local model loaded" if check_health() else "No active LLM backend"
-
+        return "Model loaded" if check_health() else "No active LLM backend"
     return "LLM status unavailable"
 
+
+# ── CSS ──────────────────────────────────────────────────────────────────────
 
 def render_styles():
     st.markdown(
@@ -93,100 +90,60 @@ def render_styles():
         @import url("https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap");
         @import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css");
 
-        html, body, [class*="css"] {
-            font-family: "Public Sans", sans-serif;
-        }
+        html, body, [class*="css"] { font-family: "Public Sans", sans-serif; }
 
         .hero {
             border: 1px solid #dbe4f0;
             background: linear-gradient(120deg, #f8fbff 0%, #eef4fb 100%);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 18px;
+            border-radius: 16px; padding: 20px; margin-bottom: 18px;
         }
-
-        .hero h1 {
-            margin: 0;
-            color: #0f172a;
-            font-size: 1.8rem;
-        }
-
-        .hero p {
-            margin: 8px 0 0 0;
-            color: #334155;
-        }
+        .hero h1 { margin: 0; color: #0f172a; font-size: 1.8rem; }
+        .hero p  { margin: 8px 0 0 0; color: #334155; }
 
         .meta-card {
-            border: 1px solid #dbe4f0;
-            border-radius: 14px;
-            background: #ffffff;
-            padding: 18px;
-            margin-bottom: 16px;
+            border: 1px solid #dbe4f0; border-radius: 14px;
+            background: #ffffff; padding: 18px; margin-bottom: 16px;
         }
+        .meta-row { display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px; color: #0f172a; }
+        .meta-key { color: #475569; font-weight: 600; }
 
-        .meta-row {
-            display: grid;
-            grid-template-columns: 160px 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-            color: #0f172a;
-        }
+        .section-info { display: flex; gap: 18px; color: #334155; margin-bottom: 10px; font-size: 0.92rem; }
 
-        .meta-key {
-            color: #475569;
-            font-weight: 600;
-        }
+        .panel { border: 1px solid #dbe4f0; border-radius: 12px; padding: 14px; background: #ffffff; }
+        .panel-title { font-weight: 700; margin-bottom: 10px; color: #0f172a; }
 
-        .section-info {
-            display: flex;
-            gap: 18px;
-            color: #334155;
-            margin-bottom: 10px;
-            font-size: 0.92rem;
-        }
+        .source-box { height: 440px; overflow-y: auto; line-height: 1.65; color: #1e293b; font-size: 0.95rem; white-space: normal; }
+        .summary-box { min-height: 220px; line-height: 1.7; color: #0f172a; background: #f4f8fe; border: 1px solid #dbe4f0; border-radius: 10px; padding: 12px; margin-top: 12px; }
 
-        .panel {
-            border: 1px solid #dbe4f0;
-            border-radius: 12px;
-            padding: 14px;
-            background: #ffffff;
-        }
+        /* Comparison table */
+        .cmp-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .cmp-table th, .cmp-table td { border: 1px solid #dbe4f0; padding: 10px 14px; text-align: left; font-size: 0.93rem; }
+        .cmp-table th { background: #eef4fb; font-weight: 700; color: #0f172a; }
+        .cmp-table td { color: #1e293b; }
+        .cmp-table tr:nth-child(even) td { background: #f8fbff; }
 
-        .panel-title {
-            font-weight: 700;
-            margin-bottom: 10px;
-            color: #0f172a;
-        }
+        /* Citation list */
+        .cite-item { padding: 10px 14px; border-bottom: 1px solid #eef4fb; line-height: 1.6; color: #1e293b; font-size: 0.93rem; }
+        .cite-num  { font-weight: 700; color: #3b82f6; margin-right: 8px; }
 
-        .source-box {
-            height: 440px;
-            overflow-y: auto;
-            line-height: 1.65;
-            color: #1e293b;
-            font-size: 0.95rem;
-            white-space: normal;
-        }
-
-        .summary-box {
-            min-height: 220px;
-            line-height: 1.7;
-            color: #0f172a;
-            background: #f4f8fe;
-            border: 1px solid #dbe4f0;
-            border-radius: 10px;
-            padding: 12px;
-            margin-top: 12px;
-        }
+        /* Figure gallery */
+        .fig-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
+        .fig-card { border: 1px solid #dbe4f0; border-radius: 12px; padding: 12px; background: #fff; text-align: center; }
+        .fig-card img { max-width: 100%; border-radius: 8px; }
+        .fig-label { margin-top: 8px; font-weight: 600; color: #0f172a; font-size: 0.9rem; }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
+# ── Section summary logic ───────────────────────────────────────────────────
+
 def section_summary(title: str, section: dict, metadata: dict) -> str:
     cache = st.session_state.setdefault("section_summaries", {})
-    if title in cache:
-        return cache[title]
+    doc_key = f"{metadata.get('title', '')}::{title}"
+    if doc_key in cache:
+        return cache[doc_key]
 
     text = " ".join(section.get("chunks", [])[:3]) or section.get("content", "")
     context = f"{metadata.get('title', 'Paper')} -> {title}"
@@ -197,7 +154,7 @@ def section_summary(title: str, section: dict, metadata: dict) -> str:
         msg = str(exc).strip() or "Unknown LLM failure."
         summary = f"LLM error: {msg}"
 
-    cache[title] = summary
+    cache[doc_key] = summary
     return summary
 
 
@@ -206,24 +163,47 @@ def summarize_all_sections(sections: dict, metadata: dict):
         section_summary(title, section, metadata)
 
 
-def reset_state_for_new_file(file_name: str):
-    if st.session_state.get("doc_file") != file_name:
-        st.session_state["doc_file"] = file_name
-        st.session_state["section_summaries"] = {}
+# ── Parse / cache helpers ────────────────────────────────────────────────────
+
+def parse_uploaded_files(uploaded_files):
+    """Parse all uploaded PDFs and store results in session_state."""
+    papers = st.session_state.get("papers", {})
+    changed = False
+
+    for uploaded in uploaded_files:
+        if uploaded.name in papers:
+            continue
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(uploaded.getvalue())
+            pdf_path = tmp.name
+        try:
+            data = services["extractor"].parse_document(pdf_path, include_media=True)
+            papers[uploaded.name] = data
+            changed = True
+        except Exception as exc:
+            logging.error("Parsing failed for %s: %s", uploaded.name, exc, exc_info=True)
+            st.error(f"Unable to process **{uploaded.name}**. Skipping.")
+
+    if changed:
+        st.session_state["papers"] = papers
+    return papers
 
 
-def render_metadata(metadata: dict, section_count: int):
+# ── Render helpers ───────────────────────────────────────────────────────────
+
+def render_metadata_card(metadata: dict, section_count: int, citation_count: int, fig_count: int, table_count: int):
     title = escape(metadata.get("title") or "Untitled Document")
     authors = escape(metadata.get("authors") or "Unknown Authors")
-    year = escape(str(metadata.get("year") or "Not available"))
-
+    year = escape(str(metadata.get("year") or "N/A"))
     st.markdown(
         f"""
         <div class="meta-card">
             <div class="meta-row"><div class="meta-key">Title</div><div>{title}</div></div>
             <div class="meta-row"><div class="meta-key">Authors</div><div>{authors}</div></div>
-            <div class="meta-row"><div class="meta-key">Publication Year</div><div>{year}</div></div>
-            <div class="meta-row"><div class="meta-key">Sections Found</div><div>{section_count}</div></div>
+            <div class="meta-row"><div class="meta-key">Year</div><div>{year}</div></div>
+            <div class="meta-row"><div class="meta-key">Sections</div><div>{section_count}</div></div>
+            <div class="meta-row"><div class="meta-key">Citations</div><div>{citation_count}</div></div>
+            <div class="meta-row"><div class="meta-key">Figures / Tables</div><div>{fig_count} / {table_count}</div></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -236,7 +216,7 @@ def render_sections(sections: dict, metadata: dict):
         st.warning("No sections detected in this document.")
         return
 
-    if st.button("Summarize All Sections", use_container_width=True):
+    if st.button("Summarize All Sections", key=f"sumall_{metadata.get('title','')}", use_container_width=True):
         with st.spinner("Generating summaries for all sections"):
             summarize_all_sections(sections, metadata)
 
@@ -262,11 +242,11 @@ def render_sections(sections: dict, metadata: dict):
             left, right = st.columns([1.2, 1])
 
             with left:
-                source = escape(section.get("content") or "No text found for this section.").replace("\n", "<br/>")
+                source = escape(section.get("content") or "No text found.").replace("\n", "<br/>")
                 st.markdown(
                     f"""
                     <div class="panel">
-                        <div class="panel-title"><i class="fa-regular fa-file-lines"></i> Original Section Content</div>
+                        <div class="panel-title"><i class="fa-regular fa-file-lines"></i> Original Content</div>
                         <div class="source-box">{source}</div>
                     </div>
                     """,
@@ -274,11 +254,13 @@ def render_sections(sections: dict, metadata: dict):
                 )
 
             with right:
-                if st.button("Summarize This Section", key=f"sum_{title}", use_container_width=True):
-                    with st.spinner(f"Summarizing section: {title}"):
+                btn_key = f"sum_{metadata.get('title','')}_{title}"
+                if st.button("Summarize This Section", key=btn_key, use_container_width=True):
+                    with st.spinner(f"Summarizing: {title}"):
                         section_summary(title, section, metadata)
 
-                summary = st.session_state.get("section_summaries", {}).get(title, "")
+                doc_key = f"{metadata.get('title', '')}::{title}"
+                summary = st.session_state.get("section_summaries", {}).get(doc_key, "")
                 if summary:
                     rendered = escape(summary)
                 else:
@@ -295,19 +277,195 @@ def render_sections(sections: dict, metadata: dict):
                 )
 
 
+# ── TAB: Paper Analysis ─────────────────────────────────────────────────────
+
+def tab_paper_analysis(papers: dict):
+    names = list(papers.keys())
+    if not names:
+        st.info("Upload one or more PDFs to begin.")
+        return
+
+    selected = st.selectbox("Select Paper", names, key="paper_selector")
+    data = papers[selected]
+    metadata = data.get("metadata", {})
+    sections = data.get("sections", {})
+    citations = data.get("citations", [])
+    figures = data.get("figures", [])
+    tables = data.get("tables", [])
+
+    render_metadata_card(metadata, len(sections), len(citations), len(figures), len(tables))
+    render_sections(sections, metadata)
+
+
+# ── TAB: Comparative Analysis ────────────────────────────────────────────────
+
+def tab_comparative(papers: dict):
+    names = list(papers.keys())
+    if len(names) < 2:
+        st.info("Upload at least **2 papers** to enable comparative analysis.")
+        return
+
+    # Metadata comparison table
+    st.subheader("📋 Paper Overview")
+    header = "<tr><th>#</th><th>Title</th><th>Authors</th><th>Year</th><th>Sections</th><th>Citations</th></tr>"
+    rows = ""
+    for i, (name, data) in enumerate(papers.items(), 1):
+        m = data.get("metadata", {})
+        rows += (
+            f"<tr><td>{i}</td>"
+            f"<td>{escape(m.get('title', 'Untitled'))}</td>"
+            f"<td>{escape(m.get('authors', 'Unknown'))}</td>"
+            f"<td>{escape(str(m.get('year', 'N/A')))}</td>"
+            f"<td>{len(data.get('sections', {}))}</td>"
+            f"<td>{len(data.get('citations', []))}</td></tr>"
+        )
+    st.markdown(f'<table class="cmp-table">{header}{rows}</table>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.subheader("🔬 AI Comparative Analysis")
+
+    cache_key = "comparative_result"
+    if st.button("Generate Comparative Analysis", key="cmp_btn", use_container_width=True):
+        with st.spinner("Analyzing papers — this may take a moment..."):
+            try:
+                result = services["llm"].compare_papers(list(papers.values()))
+                st.session_state[cache_key] = result
+            except Exception as exc:
+                st.error(f"Comparison failed: {exc}")
+
+    result = st.session_state.get(cache_key, "")
+    if result:
+        st.markdown(result)
+
+
+# ── TAB: Survey Synthesis ────────────────────────────────────────────────────
+
+def tab_survey(papers: dict):
+    names = list(papers.keys())
+    if not names:
+        st.info("Upload papers first.")
+        return
+
+    st.subheader("📊 AI Survey Synthesis")
+    st.caption(f"Synthesizing a unified survey across {len(names)} paper(s).")
+
+    cache_key = "survey_result"
+    if st.button("Generate Survey Summary", key="survey_btn", use_container_width=True):
+        with st.spinner("Generating thematic survey synthesis..."):
+            try:
+                result = services["llm"].synthesize_survey(list(papers.values()))
+                st.session_state[cache_key] = result
+            except Exception as exc:
+                st.error(f"Survey synthesis failed: {exc}")
+
+    result = st.session_state.get(cache_key, "")
+    if result:
+        st.markdown(result)
+
+
+# ── TAB: Citations ───────────────────────────────────────────────────────────
+
+def tab_citations(papers: dict):
+    if not papers:
+        st.info("Upload papers to extract citations.")
+        return
+
+    for name, data in papers.items():
+        citations = data.get("citations", [])
+        meta = data.get("metadata", {})
+        title = meta.get("title", name)
+
+        with st.expander(f"📚 {title} — {len(citations)} reference(s)", expanded=len(papers) == 1):
+            if not citations:
+                st.caption("No citations could be extracted from this paper.")
+                continue
+
+            html_items = ""
+            for cite in citations:
+                num = cite.get("number", "?")
+                text = escape(cite.get("text", ""))
+                html_items += f'<div class="cite-item"><span class="cite-num">[{num}]</span>{text}</div>'
+
+            st.markdown(
+                f'<div class="panel" style="max-height: 500px; overflow-y: auto;">{html_items}</div>',
+                unsafe_allow_html=True,
+            )
+
+
+# ── TAB: Figures & Tables ───────────────────────────────────────────────────
+
+def tab_figures_tables(papers: dict):
+    if not papers:
+        st.info("Upload papers to extract figures and tables.")
+        return
+
+    for name, data in papers.items():
+        meta = data.get("metadata", {})
+        title = meta.get("title", name)
+        figures = data.get("figures", [])
+        tables = data.get("tables", [])
+        pdf_path = data.get("pdf_path", "")
+
+        with st.expander(f"🖼️ {title} — {len(figures)} figure(s), {len(tables)} table(s)", expanded=len(papers) == 1):
+
+            # Figures
+            if figures:
+                st.markdown("#### Figures")
+                cols = st.columns(min(len(figures), 3))
+                for i, fig in enumerate(figures):
+                    with cols[i % len(cols)]:
+                        coords = fig.get("coords")
+                        if coords and pdf_path and os.path.exists(pdf_path):
+                            try:
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                                    crop_figure(pdf_path, coords, tmp.name)
+                                    with open(tmp.name, "rb") as f:
+                                        img_bytes = f.read()
+                                    if img_bytes:
+                                        b64 = base64.b64encode(img_bytes).decode()
+                                        st.markdown(
+                                            f'<div class="fig-card">'
+                                            f'<img src="data:image/png;base64,{b64}" alt="{fig.get("label", "Figure")}">'
+                                            f'<div class="fig-label">{escape(fig.get("label", "Figure"))}</div>'
+                                            f'<div style="font-size:0.82rem;color:#64748b;">{escape(fig.get("description", ""))}</div>'
+                                            f'</div>',
+                                            unsafe_allow_html=True,
+                                        )
+                            except Exception as exc:
+                                st.caption(f"{fig.get('label', 'Figure')}: extraction failed — {exc}")
+                        else:
+                            st.caption(f"{fig.get('label', 'Figure')} — Page {fig.get('page', '?')}")
+            else:
+                st.caption("No figures detected.")
+
+            # Tables
+            if tables:
+                st.markdown("#### Tables")
+                for tab in tables:
+                    preview = tab.get("preview", "No preview available.")
+                    label = tab.get("label", "Table")
+                    st.markdown(f"**{label}** (Page {tab.get('page', '?')})")
+                    st.code(preview, language=None)
+            else:
+                st.caption("No tables detected.")
+
+
+# ── Main app ─────────────────────────────────────────────────────────────────
+
 def main():
     global services
 
     render_styles()
 
+    # ── Sidebar ──────────────────────────────────────────────────────────
     with st.sidebar:
-        st.markdown("### Research Paper Summarizer")
-        st.markdown("Upload a PDF and summarize sections using LLaMA.")
+        st.markdown("### 📄 Research Paper Summarizer")
+        st.markdown("Upload PDFs to analyze, compare, and summarize research papers.")
 
         model_name = st.text_input(
-            "LLaMA Model Name",
+            "LLM Model Name",
             value=DEFAULT_LLAMA_MODEL,
-            help="Use an Ollama model tag, for example llama3.2:3b.",
+            help="Model tag for Ollama, or auto-detected when using Groq.",
         )
 
         runtime_config = resolve_runtime_config(model_name)
@@ -320,12 +478,16 @@ def main():
         else:
             st.caption("Runtime: Ollama API (for deployed app).")
 
-        uploaded_file = st.file_uploader("Upload Paper (PDF)", type=["pdf"])
+        uploaded_files = st.file_uploader(
+            "Upload Papers (PDF)",
+            type=["pdf"],
+            accept_multiple_files=True,
+        )
 
         st.markdown("---")
-        st.markdown("**Selected LLM**: `LLaMA`")
         st.markdown(f"**Runtime Backend**: `{runtime_provider}`")
 
+    # ── Services init ────────────────────────────────────────────────────
     config_signature = llm_config_signature(runtime_config)
     try:
         services = get_services(config_signature)
@@ -334,13 +496,10 @@ def main():
         st.exception(exc)
         return
 
-    # Warn (non-fatal) if LLM is in fallback mode — key is missing but app still loads
+    # Warn if LLM is in fallback mode
     llm = services.get("llm")
     if llm and getattr(llm, "mode", "") == "fallback":
-        st.warning(
-            llm_init_help(runtime_provider),
-            icon="⚠️",
-        )
+        st.warning(llm_init_help(runtime_provider), icon="⚠️")
         return
 
     if st.session_state.get("llm_signature") != config_signature:
@@ -351,49 +510,60 @@ def main():
         st.markdown(f"**LLM**: {llm_status_text(services['llm'])}")
         st.markdown("**Section Parser**: Active")
 
+    # ── Hero ─────────────────────────────────────────────────────────────
     st.markdown(
         """
         <div class="hero">
-            <h1>Section Aware Research Paper Summarization</h1>
-            <p>Upload any research paper. The app identifies metadata and sections from Abstract to References,
-            separates content by section, and lets you summarize each section on demand.</p>
+            <h1>Multi-Document Research Paper Analyzer</h1>
+            <p>Upload research papers to extract metadata, sections, citations, figures, and tables.
+            Compare papers side-by-side and generate AI-powered survey syntheses.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if not uploaded_file:
-        st.info("Upload a PDF to begin.")
+    if not uploaded_files:
+        st.info("Upload one or more PDFs from the sidebar to begin.")
         return
 
-    reset_state_for_new_file(uploaded_file.name)
+    # ── Parse all uploaded files ─────────────────────────────────────────
+    # Reset papers if the set of uploaded files changed
+    current_names = sorted(f.name for f in uploaded_files)
+    if st.session_state.get("uploaded_names") != current_names:
+        st.session_state["uploaded_names"] = current_names
+        st.session_state["papers"] = {}
+        st.session_state["section_summaries"] = {}
+        st.session_state.pop("comparative_result", None)
+        st.session_state.pop("survey_result", None)
 
-    with st.spinner("Extracting metadata and sections from PDF"):
-        if st.session_state.get("parsed_file") != uploaded_file.name:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(uploaded_file.getvalue())
-                pdf_path = tmp.name
+    with st.spinner(f"Parsing {len(uploaded_files)} paper(s)..."):
+        papers = parse_uploaded_files(uploaded_files)
 
-            try:
-                data = services["extractor"].parse_document(pdf_path, include_media=False)
-            except Exception as exc:
-                logging.error("Document parsing failed: %s", exc, exc_info=True)
-                st.error("Unable to process this PDF. Please try another file.")
-                return
-
-            st.session_state["parsed_file"] = uploaded_file.name
-            st.session_state["doc_data"] = data
-
-    data = st.session_state.get("doc_data")
-    if not data:
-        st.error("Parsing failed. Please re upload the file.")
+    if not papers:
+        st.error("No papers could be processed.")
         return
 
-    metadata = data.get("metadata", {})
-    sections = data.get("sections", {})
+    # Update sidebar with paper count
+    with st.sidebar:
+        st.markdown(f"**Papers Loaded**: {len(papers)}")
+        for name, data in papers.items():
+            m = data.get("metadata", {})
+            st.caption(f"• {m.get('title', name)[:50]}")
 
-    render_metadata(metadata, len(sections))
-    render_sections(sections, metadata)
+    # ── Tabs ─────────────────────────────────────────────────────────────
+    tab_labels = ["📄 Paper Analysis", "🔬 Comparative", "📊 Survey", "📚 Citations", "🖼️ Figures & Tables"]
+    t1, t2, t3, t4, t5 = st.tabs(tab_labels)
+
+    with t1:
+        tab_paper_analysis(papers)
+    with t2:
+        tab_comparative(papers)
+    with t3:
+        tab_survey(papers)
+    with t4:
+        tab_citations(papers)
+    with t5:
+        tab_figures_tables(papers)
 
 
 if __name__ == "__main__":

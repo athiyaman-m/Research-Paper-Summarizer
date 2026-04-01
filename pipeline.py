@@ -72,7 +72,7 @@ class DocumentExtractor:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-    def parse_document(self, pdf_path: str, include_media: bool = False) -> Dict:
+    def parse_document(self, pdf_path: str, include_media: bool = True) -> Dict:
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(pdf_path)
 
@@ -85,12 +85,14 @@ class DocumentExtractor:
             figures = self._extract_figures(pdf_path)
             tables = self._extract_tables(pdf_path)
         self._attach_media_to_sections(sections, figures, tables)
+        citations = self.extract_citations(sections)
 
         return {
             "metadata": metadata,
             "sections": sections,
             "figures": figures,
             "tables": tables,
+            "citations": citations,
             "pdf_path": pdf_path,
         }
 
@@ -497,6 +499,58 @@ class DocumentExtractor:
             pages = set(section.get("pages", []))
             section["figures"] = [fig["id"] for fig in figures if fig["page"] in pages]
             section["tables"] = [tab["id"] for tab in tables if tab["page"] in pages]
+
+    @staticmethod
+    def extract_citations(sections: Dict[str, Dict]) -> List[Dict]:
+        """Parse the References / Bibliography section into individual citation entries."""
+        ref_section = None
+        for title, sec in sections.items():
+            if title.lower().strip() in {"references", "bibliography", "works cited"}:
+                ref_section = sec
+                break
+        if ref_section is None:
+            return []
+
+        raw = ref_section.get("content", "")
+        if not raw.strip():
+            return []
+
+        citations: List[Dict] = []
+
+        # Strategy 1: numbered references like [1], [2], ... or 1. 2. ...
+        numbered = re.split(r"\n?\[?(\d{1,3})\]?\.?\s+", raw)
+        if len(numbered) >= 5:  # at least 2 references found (number+text pairs)
+            idx = 1
+            while idx + 1 < len(numbered):
+                num = numbered[idx].strip()
+                text = _normalize_text(numbered[idx + 1])
+                if len(text) > 15:
+                    citations.append({
+                        "id": f"ref_{num}",
+                        "number": int(num),
+                        "text": text,
+                        "pages": ref_section.get("pages", []),
+                    })
+                idx += 2
+            if citations:
+                return citations
+
+        # Strategy 2: split on double-newlines or lines that start with an author pattern
+        blocks = re.split(r"\n{2,}", raw)
+        if len(blocks) < 3:
+            blocks = re.split(r"\n(?=[A-Z][a-z]+,?\s+[A-Z])", raw)
+
+        for i, block in enumerate(blocks, start=1):
+            text = _normalize_text(block)
+            if len(text) > 15:
+                citations.append({
+                    "id": f"ref_{i}",
+                    "number": i,
+                    "text": text,
+                    "pages": ref_section.get("pages", []),
+                })
+
+        return citations
 
 
 class LLMService:
@@ -917,6 +971,134 @@ class LLMService:
         if picked:
             return " ".join(picked)
         return clean[:700]
+
+    def compare_papers(self, papers: List[Dict]) -> str:
+        """Generate a structured comparative analysis across multiple papers."""
+        if not papers or len(papers) < 2:
+            return "At least two papers are required for comparative analysis."
+
+        paper_briefs = []
+        for i, paper in enumerate(papers, 1):
+            meta = paper.get("metadata", {})
+            sections = paper.get("sections", {})
+            abstract = ""
+            conclusion = ""
+            for title, sec in sections.items():
+                low = title.lower().strip()
+                if low == "abstract" and not abstract:
+                    abstract = self._truncate_for_context(sec.get("content", ""), 800)
+                if low in {"conclusion", "conclusions"} and not conclusion:
+                    conclusion = self._truncate_for_context(sec.get("content", ""), 600)
+            brief = (
+                f"Paper {i}: {meta.get('title', 'Untitled')}\n"
+                f"Authors: {meta.get('authors', 'Unknown')}\n"
+                f"Year: {meta.get('year', 'N/A')}\n"
+                f"Abstract: {abstract or 'Not available'}\n"
+                f"Conclusion: {conclusion or 'Not available'}\n"
+            )
+            paper_briefs.append(brief)
+
+        combined = "\n---\n".join(paper_briefs)
+        prompt_text = (
+            f"Below are summaries of {len(papers)} research papers:\n\n"
+            f"{combined}\n\n"
+            "Provide a structured comparative analysis covering:\n"
+            "1. **Research Objectives** — What each paper aims to solve\n"
+            "2. **Methodologies** — Approaches and techniques used\n"
+            "3. **Key Findings** — Main results and contributions\n"
+            "4. **Datasets & Evaluation** — Data sources and metrics used\n"
+            "5. **Strengths & Limitations** — Advantages and gaps of each paper\n"
+            "6. **Agreements & Contradictions** — Where papers align or disagree\n\n"
+            "Format with clear headings and bullet points."
+        )
+        return self._llm_generate(prompt_text, max_tokens=1200)
+
+    def synthesize_survey(self, papers: List[Dict]) -> str:
+        """Generate a unified thematic survey summary across multiple papers."""
+        if not papers:
+            return "No papers provided for survey synthesis."
+
+        paper_briefs = []
+        for i, paper in enumerate(papers, 1):
+            meta = paper.get("metadata", {})
+            sections = paper.get("sections", {})
+            abstract = ""
+            for title, sec in sections.items():
+                if title.lower().strip() == "abstract":
+                    abstract = self._truncate_for_context(sec.get("content", ""), 800)
+                    break
+            brief = (
+                f"Paper {i}: {meta.get('title', 'Untitled')} "
+                f"({meta.get('authors', 'Unknown')}, {meta.get('year', 'N/A')})\n"
+                f"Abstract: {abstract or 'Not available'}"
+            )
+            paper_briefs.append(brief)
+
+        combined = "\n---\n".join(paper_briefs)
+        prompt_text = (
+            f"Below are abstracts from {len(papers)} research papers on related topics:\n\n"
+            f"{combined}\n\n"
+            "Write a unified survey-style summary that:\n"
+            "1. Identifies the **overarching research theme**\n"
+            "2. Groups papers by **sub-themes or approaches**\n"
+            "3. Traces the **evolution of ideas** across papers\n"
+            "4. Highlights **open problems and future directions**\n"
+            "5. Provides **a concluding synthesis** of the field's state\n\n"
+            "Write in a formal academic tone with clear paragraphs."
+        )
+        return self._llm_generate(prompt_text, max_tokens=1500)
+
+    def _llm_generate(self, prompt: str, max_tokens: int = 600) -> str:
+        """Dispatch a generation request to whichever backend is active."""
+        if self.mode == "groq":
+            return self._groq_generate(prompt, max_tokens)
+        if self.mode == "ollama":
+            return self._ollama_generate_text(prompt, max_tokens)
+        if self.mode == "local-llama":
+            return self._local_generate(prompt, max_tokens)
+        return self._fallback_summary(prompt)
+
+    def _groq_generate(self, prompt: str, max_tokens: int = 600) -> str:
+        if self._groq_client is None:
+            raise RuntimeError("Groq client is not initialized.")
+        messages = [
+            {"role": "system", "content": "You are an expert research analyst."},
+            {"role": "user", "content": prompt},
+        ]
+        for attempt in range(1, self.groq_max_retries + 1):
+            try:
+                response = self._groq_client.chat.completions.create(
+                    model=self.groq_model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=0.3,
+                )
+                generated = response.choices[0].message.content.strip()
+                if generated:
+                    return generated
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "rate" in msg and attempt < self.groq_max_retries:
+                    time.sleep(min(2.0 * attempt, 8.0))
+                    continue
+                raise RuntimeError(f"Groq generation failed: {exc}") from exc
+        return "Generation failed after retries."
+
+    def _ollama_generate_text(self, prompt: str, max_tokens: int = 600) -> str:
+        payload = {
+            "model": self.ollama_model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": 0.3, "num_predict": max_tokens, "num_ctx": self.ollama_num_ctx},
+        }
+        result = self._ollama_post_json("/api/generate", payload)
+        return str(result.get("response", "")).strip() or "No response from Ollama."
+
+    def _local_generate(self, prompt: str, max_tokens: int = 600) -> str:
+        if self.llm is None:
+            raise RuntimeError("Local LLM is not initialized.")
+        response = self.llm(prompt, max_tokens=max_tokens, stop=["\n\n\n"])
+        return response["choices"][0]["text"].strip() or "No response from local LLM."
 
 
 def crop_figure(pdf_path: str, coords: Dict[str, float], output_path: str):

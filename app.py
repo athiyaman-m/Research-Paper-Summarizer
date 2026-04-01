@@ -85,118 +85,70 @@ def llm_status_text(llm) -> str:
 
 # ── CSS ──────────────────────────────────────────────────────────────────────
 
-def render_styles():
+def render_styles(is_dark: bool = False):
     st.markdown(
-        """
+        f"""
         <style>
         @import url("https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&display=swap");
         @import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css");
 
-        /* ── Light theme (default) ── */
-        :root {
-            --bg-primary:    #ffffff;
-            --bg-secondary:  #f8fbff;
-            --bg-card:       #ffffff;
-            --bg-panel:      #f4f8fe;
-            --border:        #dbe4f0;
-            --text-primary:  #0f172a;
-            --text-secondary:#334155;
-            --text-muted:    #475569;
-            --accent:        #3b82f6;
-            --hero-bg:       linear-gradient(120deg, #f8fbff 0%, #eef4fb 100%);
-            --table-even:    #f8fbff;
-            --table-header:  #eef4fb;
-        }
+        :root {{
+            --bg-primary:    {"#0f1117" if is_dark else "#ffffff"};
+            --bg-secondary:  {"#1a1d27" if is_dark else "#f8fbff"};
+            --bg-card:       {"#1e2130" if is_dark else "#ffffff"};
+            --bg-panel:      {"#252838" if is_dark else "#f4f8fe"};
+            --border:        {"#2d3148" if is_dark else "#dbe4f0"};
+            --text-primary:  {"#e2e8f0" if is_dark else "#0f172a"};
+            --text-secondary:{"#94a3b8" if is_dark else "#334155"};
+            --text-muted:    {"#64748b" if is_dark else "#475569"};
+            --accent:        {"#60a5fa" if is_dark else "#3b82f6"};
+            --hero-bg:       {"linear-gradient(120deg, #1a1d27 0%, #252838 100%)" if is_dark else "linear-gradient(120deg, #f8fbff 0%, #eef4fb 100%)"};
+            --table-even:    {"#1a1d27" if is_dark else "#f8fbff"};
+            --table-header:  {"#252838" if is_dark else "#eef4fb"};
+        }}
 
-        /* ── Dark theme ── */
-        [data-theme="dark"] {
-            --bg-primary:    #0f1117;
-            --bg-secondary:  #1a1d27;
-            --bg-card:       #1e2130;
-            --bg-panel:      #252838;
-            --border:        #2d3148;
-            --text-primary:  #e2e8f0;
-            --text-secondary:#94a3b8;
-            --text-muted:    #64748b;
-            --accent:        #60a5fa;
-            --hero-bg:       linear-gradient(120deg, #1a1d27 0%, #252838 100%);
-            --table-even:    #1a1d27;
-            --table-header:  #252838;
-        }
+        html, body, [class*="css"] {{ font-family: "Public Sans", sans-serif; }}
 
-        html, body, [class*="css"] { font-family: "Public Sans", sans-serif; }
-
-        .hero {
+        .hero {{
             border: 1px solid var(--border);
             background: var(--hero-bg);
             border-radius: 16px; padding: 20px; margin-bottom: 18px;
-        }
-        .hero h1 { margin: 0; color: var(--text-primary); font-size: 1.8rem; }
-        .hero p  { margin: 8px 0 0 0; color: var(--text-secondary); }
+        }}
+        .hero h1 {{ margin: 0; color: var(--text-primary); font-size: 1.8rem; }}
+        .hero p  {{ margin: 8px 0 0 0; color: var(--text-secondary); }}
 
-        .meta-card {
+        .meta-card {{
             border: 1px solid var(--border); border-radius: 14px;
             background: var(--bg-card); padding: 18px; margin-bottom: 16px;
-        }
-        .meta-row { display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px; color: var(--text-primary); }
-        .meta-key { color: var(--text-muted); font-weight: 600; }
+        }}
+        .meta-row {{ display: grid; grid-template-columns: 160px 1fr; gap: 10px; margin-bottom: 10px; color: var(--text-primary); }}
+        .meta-key {{ color: var(--text-muted); font-weight: 600; }}
 
-        .section-info { display: flex; gap: 18px; color: var(--text-secondary); margin-bottom: 10px; font-size: 0.92rem; }
+        .section-info {{ display: flex; gap: 18px; color: var(--text-secondary); margin-bottom: 10px; font-size: 0.92rem; }}
 
-        .panel { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--bg-card); }
-        .panel-title { font-weight: 700; margin-bottom: 10px; color: var(--text-primary); }
+        .panel {{ border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--bg-card); }}
+        .panel-title {{ font-weight: 700; margin-bottom: 10px; color: var(--text-primary); }}
 
-        .source-box { height: 440px; overflow-y: auto; line-height: 1.65; color: var(--text-primary); font-size: 0.95rem; white-space: normal; }
-        .summary-box { min-height: 220px; line-height: 1.7; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 12px; }
+        .source-box {{ height: 440px; overflow-y: auto; line-height: 1.65; color: var(--text-primary); font-size: 0.95rem; white-space: normal; }}
+        .summary-box {{ min-height: 220px; line-height: 1.7; color: var(--text-primary); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 12px; }}
 
         /* Comparison table */
-        .cmp-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        .cmp-table th, .cmp-table td { border: 1px solid var(--border); padding: 10px 14px; text-align: left; font-size: 0.93rem; }
-        .cmp-table th { background: var(--table-header); font-weight: 700; color: var(--text-primary); }
-        .cmp-table td { color: var(--text-primary); }
-        .cmp-table tr:nth-child(even) td { background: var(--table-even); }
+        .cmp-table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
+        .cmp-table th, .cmp-table td {{ border: 1px solid var(--border); padding: 10px 14px; text-align: left; font-size: 0.93rem; }}
+        .cmp-table th {{ background: var(--table-header); font-weight: 700; color: var(--text-primary); }}
+        .cmp-table td {{ color: var(--text-primary); }}
+        .cmp-table tr:nth-child(even) td {{ background: var(--table-even); }}
 
         /* Citation list */
-        .cite-item { padding: 10px 14px; border-bottom: 1px solid var(--border); line-height: 1.6; color: var(--text-primary); font-size: 0.93rem; }
-        .cite-num  { font-weight: 700; color: var(--accent); margin-right: 8px; }
+        .cite-item {{ padding: 10px 14px; border-bottom: 1px solid var(--border); line-height: 1.6; color: var(--text-primary); font-size: 0.93rem; }}
+        .cite-num  {{ font-weight: 700; color: var(--accent); margin-right: 8px; }}
 
         /* Figure gallery */
-        .fig-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
-        .fig-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg-card); text-align: center; }
-        .fig-card img { max-width: 100%; border-radius: 8px; }
-        .fig-label { margin-top: 8px; font-weight: 600; color: var(--text-primary); font-size: 0.9rem; }
-
-        /* Floating theme toggle */
-        #theme-toggle-btn {
-            position: fixed; top: 14px; right: 18px; z-index: 99999;
-            width: 40px; height: 40px; border-radius: 50%;
-            border: 1px solid var(--border); background: var(--bg-card);
-            color: var(--text-primary); font-size: 1.15rem;
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-            transition: background 0.2s, color 0.2s, border-color 0.2s;
-        }
-        #theme-toggle-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .fig-gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }}
+        .fig-card {{ border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--bg-card); text-align: center; }}
+        .fig-card img {{ max-width: 100%; border-radius: 8px; }}
+        .fig-label {{ margin-top: 8px; font-weight: 600; color: var(--text-primary); font-size: 0.9rem; }}
         </style>
-
-        <!-- Floating theme toggle button (pure JS, no rerun) -->
-        <div id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle dark/light theme">🌓</div>
-        <script>
-        (function(){
-            const saved = localStorage.getItem('app_theme');
-            if(saved === 'dark') document.documentElement.setAttribute('data-theme','dark');
-        })();
-        function toggleTheme(){
-            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            if(isDark){
-                document.documentElement.removeAttribute('data-theme');
-                localStorage.setItem('app_theme','light');
-            } else {
-                document.documentElement.setAttribute('data-theme','dark');
-                localStorage.setItem('app_theme','dark');
-            }
-        }
-        </script>
         """,
         unsafe_allow_html=True,
     )
@@ -520,30 +472,39 @@ def tab_figures_tables(papers: dict):
 def main():
     global services
 
-    render_styles()
-
     # ── Sidebar ──────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown("### 📄 Research Paper Summarizer")
-        st.markdown("Upload PDFs to analyze, compare, and summarize research papers.")
+        st.markdown("Upload PDFs to analyze, compare, and summarize.")
+
+        # Dark mode toggle — small native toggle, no state loss
+        is_dark = st.toggle("🌙 Dark Mode", value=False, key="dark_mode_toggle")
+        render_styles(is_dark)
 
         st.markdown("---")
 
-        model_name = st.text_input(
-            "LLM Model Name",
-            value=DEFAULT_LLAMA_MODEL,
-            help="Model tag for Ollama, or auto-detected when using Groq.",
+        model_options = [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "gemma2-9b-it",
+            "mixtral-8x7b-32768",
+        ]
+        model_name = st.selectbox(
+            "LLM Model",
+            options=model_options,
+            index=0,
+            help="Select the Groq-hosted model for summarization.",
         )
 
         runtime_config = resolve_runtime_config(model_name)
         runtime_provider = runtime_config["provider"]
 
         if runtime_provider == "groq":
-            st.caption("Runtime: Groq API ☁️ (fast, no tunnel needed).")
+            st.caption("Runtime: Groq API ☁️")
         elif runtime_provider == "local":
-            st.caption("Runtime: Local GGUF (OLLAMA_BASE_URL not set).")
+            st.caption("Runtime: Local GGUF")
         else:
-            st.caption("Runtime: Ollama API (for deployed app).")
+            st.caption("Runtime: Ollama API")
 
         uploaded_files = st.file_uploader(
             "Upload Papers (PDF)",
@@ -552,9 +513,19 @@ def main():
         )
 
         st.markdown("---")
+        st.markdown("**Supported Documents**")
+        st.caption("📄 arXiv Papers (Best)")
+        st.caption("📄 IEEE / ACM / Springer")
+        st.caption("📄 Conference & Journal PDFs")
+        st.caption("📄 Thesis & Dissertations")
+        st.caption("📄 General Research PDFs")
+
+        st.markdown("---")
         st.markdown(f"**Runtime Backend**: `{runtime_provider}`")
 
     # ── Services init ────────────────────────────────────────────────────
+    # Pass selected model to LLMService via env var
+    os.environ["GROQ_MODEL"] = runtime_config.get("model", "llama-3.3-70b-versatile")
     config_signature = llm_config_signature(runtime_config)
     try:
         services = get_services(config_signature)

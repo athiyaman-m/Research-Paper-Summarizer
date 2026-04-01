@@ -571,7 +571,7 @@ class LLMService:
 
         # Groq settings
         self.groq_api_key = os.getenv("GROQ_API_KEY", "").strip()
-        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.2-3b-preview")
+        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
         self.groq_max_input_chars = self._env_int("GROQ_MAX_INPUT_CHARS", default=12000, minimum=2000)
         self.groq_max_retries = self._env_int("GROQ_MAX_RETRIES", default=3, minimum=1)
         self._groq_client = None

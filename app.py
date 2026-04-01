@@ -13,7 +13,7 @@ st.set_page_config(page_title="Research Paper Summarizer", layout="wide")
 
 
 DEFAULT_LLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-APP_VERSION = "2.0.1"  # bump to bust @st.cache_resource when code changes
+APP_VERSION = "2.0.2"  # bump to bust @st.cache_resource when code changes
 services = {}
 
 
@@ -541,7 +541,6 @@ def main():
 
     if st.session_state.get("llm_signature") != config_signature:
         st.session_state["llm_signature"] = config_signature
-        st.session_state["section_summaries"] = {}
 
     with st.sidebar:
         st.markdown(f"**LLM**: {llm_status_text(services['llm'])}")
@@ -564,14 +563,16 @@ def main():
         return
 
     # ── Parse all uploaded files ─────────────────────────────────────────
-    # Reset papers if the set of uploaded files changed
+    # Only reset if the actual set of uploaded files has genuinely changed
     current_names = sorted(f.name for f in uploaded_files)
-    if st.session_state.get("uploaded_names") != current_names:
+    prev_names = st.session_state.get("uploaded_names", [])
+    files_changed = prev_names != current_names
+    if files_changed:
         st.session_state["uploaded_names"] = current_names
-        st.session_state["papers"] = {}
-        st.session_state["section_summaries"] = {}
-        st.session_state.pop("comparative_result", None)
-        st.session_state.pop("survey_result", None)
+        # Remove papers that are no longer in the uploaded set
+        old_papers = st.session_state.get("papers", {})
+        st.session_state["papers"] = {k: v for k, v in old_papers.items() if k in current_names}
+        # Keep existing summaries and results — don't wipe them
 
     with st.spinner(f"Parsing {len(uploaded_files)} paper(s)..."):
         papers = parse_uploaded_files(uploaded_files)

@@ -478,9 +478,9 @@ def main():
         st.markdown("Upload PDFs to analyze, compare, and summarize.")
 
         # Dark mode toggle — small native toggle, no state loss
-        is_dark = st.toggle("Dark Mode", value=False, key="dark_mode_toggle")
+        #is_dark = st.toggle("Dark Mode", value=True, key="dark_mode_toggle")
+        is_dark = True
         render_styles(is_dark)
-
         st.markdown("---")
 
         model_options = [

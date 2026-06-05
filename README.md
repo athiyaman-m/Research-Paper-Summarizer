@@ -1,74 +1,91 @@
 # Research Paper Summarizer
 
-A professional scientific PDF summarization system with:
+A research-grade scientific document summarization system built for rigorous evaluation and deployment.
 
-- Metadata and section extraction
-- Structure-aware section summarization
-- Factual consistency auditing
-- Figure/table segmentation and media metrics
-- Streamlit UI and reproducible experiment notebook
+## Project Outcome
 
-## Main Workflow
+This repository delivers a complete long-form research paper summarizer that converts academic PDFs into structured, evidence-aware summaries with section-level breakdowns, citation-aware media alignment, and fact consistency auditing.
 
-PDF Upload -> GROBID (metadata + sections) -> Figure/Table Segmentation -> Text Chunking -> LLM Summarization -> Section Summaries -> Final Summary + UI Output
+Key outcomes:
+- Structured extraction of paper metadata, sections, citations, figures, and tables
+- Section-aware and graph-informed summarization to preserve document logic
+- Factual consistency checks and summary revision to reduce hallucinations
+- Media segmentation evaluation for figures and tables
+- Proven experimental workflow and publication-ready metric outputs
 
-## Run App
+## Architecture and Capabilities
 
-```bash
-cd "/home/cdac/Office-Projects/Research-Paper-Summarizer"
-.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8513
-```
+The system is organized as a modular pipeline:
 
-Open: <http://127.0.0.1:8513>
+1. Document extraction
+   - GROBID-style section parsing and metadata extraction
+   - PDF text and media extraction with `PyMuPDF`
+   - Section graph construction supporting contextual summarization
+2. LLM-driven summarization
+   - Section-level summarization using LLaMA through either a local GGUF model or Ollama API
+   - Final summary composition from priority-ranked sections
+   - Domain-specific adaptation for legal, medical, government, and general documents
+3. Factual auditing and revision
+   - Support scoring between summary sentences and source sentences
+   - Contradiction detection based on negation and numeric alignment
+   - Audit-driven summary revision to remove unsupported claims
+4. Multi-document literature synthesis
+   - Cross-paper highlight extraction
+   - Combined trends, common findings and differences
+5. Media metrics
+   - Figure/table assignment coverage and alignment
+   - Caption and preview quality assessment
 
-## Research Notebook
+## Performance and Metrics
 
-`research_paper_novelty_experiments.ipynb` includes:
+The evaluation framework produces quantitative metrics for comparison between a baseline summarization pipeline and the proposed structure-aware approach.
 
-- Structure-aware and factual experiments
-- Phase-2 media segmentation metrics
-- Publication plots and ablation tables
+Representative results from a single long-document experiment on an arXiv paper sample:
 
-## Repository Notes
+- ROUGE-1 F1: 0.1277 → 0.1346
+- ROUGE-2 F1: 0.0483 → 0.0957
+- ROUGE-L F1: 0.0747 → 0.0832
+- Semantic proxy score: 0.4532 → 0.5650
+- Factual consistency score: 0.3235 → 0.5022
+- Section coverage: 0.60 → 0.80
+- Structure coherence signal: 0.00 → 0.1663
 
-- Local virtual environment and model binaries are excluded via `.gitignore`.
-- Figures/tables under `outputs/` are included for publication readiness.
+These metrics demonstrate improved summary relevance, structure preservation, and evidence alignment when using section-aware selection and graph-context summarization.
 
+## Research Contributions
 
-## Streamlit Cloud Deployment
+This project includes research-ready components for evaluating summarization quality and media-aware document understanding:
 
-This repo includes deployment files:
+- `research_paper_novelty_experiments.ipynb` for reproducible experimentation
+- `research_experiment_framework.py` with evaluation, auditing, and multi-document summarization logic
+- `run_research_experiments.py` for end-to-end experiment execution and metric output generation
+- `outputs/tables/` containing publication-ready CSV and LaTeX tables for metrics and ablation analysis
 
-- `requirements.txt` (installs `streamlit` and `PyMuPDF`)
-- `runtime.txt` (pins Python `3.12`)
+## Technology Stack
 
-Set app entrypoint to `app.py`.
+- Python 3.12
+- Streamlit for user-facing dashboard and interactive document exploration
+- `PyMuPDF` for PDF parsing and figure cropping
+- LLaMA model integration via Ollama API or local GGUF runtime
+- Custom summarization and evaluation pipeline in Python
 
-This deployment is configured to require an active LLM backend (no fallback mode).
+## Dataset and Sample Inputs
 
-### Real-Time LLaMA (No Fallback)
+This repository is built around academic PDF summarization for long documents. Included sample content and experiment inputs include:
 
-This app is now **LLaMA-only**.
+- `data/2004.05150v2.pdf` as a representative arXiv research paper
+- `research_paper_novelty_experiments.ipynb` for evaluation workflows
+- `research_experiment_results.json` recording experiment outputs and metric comparisons
 
-- If `OLLAMA_BASE_URL` is set, it uses **Ollama API** (recommended for deployed Streamlit).
-- If `OLLAMA_BASE_URL` is empty, it uses **local GGUF** model path.
+## Output Artifacts
 
-Set secrets in **Streamlit Cloud -> App settings -> Secrets** (or `.streamlit/secrets.toml` locally):
+Primary deliverables in this repository:
 
-```toml
-SUMMARIX_REQUIRE_LLM = "true"
+- `Structured_Summary.txt` and `structured_summary_output.txt`
+- `research_experiment_results.json` with baseline and structure-aware metrics
+- `outputs/tables/` for publication-ready results and ablation tables
+- `app.py` Streamlit interface for interactive paper summarization
 
-# optional explicit backend: ollama or local
-SUMMARIX_LLM_PROVIDER = "ollama"
+## Why this matters
 
-OLLAMA_BASE_URL = "https://your-public-tunnel-url"
-OLLAMA_MODEL = "llama3.2:3b"
-OLLAMA_TIMEOUT_SEC = "120"
-OLLAMA_NUM_CTX = "2048"
-OLLAMA_MAX_INPUT_CHARS = "12000"
-OLLAMA_MAX_RETRIES = "3"
-
-SUMMARIX_MODEL_PATH = "models/llama-3.2-1b-instruct.Q4_K_M.gguf"
-```
-
-If Ollama is unreachable or model path is missing, app shows a clear LLaMA initialization error.
+This project demonstrates an end-to-end, deployment-ready pipeline that bridges academic PDF parsing with modern LLM summarization while emphasizing structure, factual rigor, and research evaluation. It is intended for technical reviewers and recruiters who want to see a concrete engineering and research outcome rather than only run instructions.

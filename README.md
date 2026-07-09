@@ -2,21 +2,39 @@
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.32+-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io)
+[![Groq](https://img.shields.io/badge/Groq-LLM-F97316?logo=groq&logoColor=white)](https://groq.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A **research-grade scientific document summarization system** that converts academic PDFs into structured, evidence-aware summaries with section-level breakdowns, citation-aware media alignment, and factual consistency auditing. Built for rigorous evaluation and deployment.
+An **end-to-end AI-powered system** that ingests academic PDFs, extracts structured content, generates section-level summaries via LLMs, audits factual consistency, and produces publication-ready metrics — all through an interactive Streamlit dashboard.
 
 ---
 
 ## Table of Contents
 
+- [Overview](#overview)
 - [Architecture](#architecture)
-- [Pipeline Workflow](#pipeline-workflow)
-- [Features](#features)
-- [Results & Metrics](#results--metrics)
+- [Workflow](#workflow)
+- [Screenshots](#screenshots)
+- [Key Features](#key-features)
+- [Technical Outcomes](#technical-outcomes)
+- [Technology Stack](#technology-stack)
 - [Getting Started](#getting-started)
-- [Deployment](#deployment)
 - [Project Structure](#project-structure)
+- [Author](#author)
+
+---
+
+## Overview
+
+Reading and synthesizing research papers is time-consuming. This system automates the process:
+
+1. **Parse** any academic PDF into sections, figures, tables, and citations
+2. **Summarize** each section using LLMs (Groq / Ollama / local)
+3. **Audit** summaries for factual consistency against the source text
+4. **Analyze** multiple papers side-by-side with comparative and survey synthesis
+5. **Visualize** results through an interactive multi-tab dashboard
+
+Built for **researchers, students, and professionals** who need to quickly extract insights from scientific literature.
 
 ---
 
@@ -90,131 +108,79 @@ flowchart TB
 
 ---
 
-## Pipeline Workflow
+## Workflow
 
-The end-to-end flow processes a PDF through extraction → summarization → auditing → evaluation:
+The end-to-end pipeline processes a PDF through four stages: **Extraction → Summarization → Auditing → Evaluation**.
 
+### 1. Document Extraction
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                        1. DOCUMENT EXTRACTION                           │
-│                                                                          │
-│   PDF ──► PyMuPDF ──► Line Items ──► Metadata (title/authors/year)      │
-│              │              │                                            │
-│              ▼              ▼                                            │
-│         Figures ◄──► Sections ──► Section Graph (Jaccard + Flow)        │
-│              │              │                                            │
-│              ▼              ▼                                            │
-│          Tables        Citations (numbered + author regex)              │
-└──────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                     2. LLM SUMMARIZATION                                │
-│                                                                          │
-│   Backends: Groq API │ Ollama │ Local GGUF (llama.cpp)                  │
-│                                                                          │
-│   For each section (priority-ranked):                                    │
-│     ┌─────────────────────────────────────────────┐                     │
-│     │  Section Text + Graph Context (linked secs)  │                     │
-│     │           + Domain Adaptation                │                     │
-│     └───────────────────┬─────────────────────────┘                     │
-│                         ▼                                               │
-│              ┌────────────────────┐                                     │
-│              │   LLM Generate     │  ← retry with shrinking context     │
-│              └────────┬───────────┘                                     │
-│                       ▼                                                 │
-│              Section Summary (cached)                                   │
-│                                                                          │
-│   Compose Final: priority-rank sections → single coherent summary      │
-└──────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                   3. FACTUAL AUDITING & REVISION                        │
-│                                                                          │
-│   For each summary sentence:                                             │
-│     ┌──────────────────────────────────────────────────┐                │
-│     │  Find best-supporting source sentence             │                │
-│     │    = 0.65 × Jaccard + 0.35 × Cosine Similarity   │                │
-│     │                                                  │                │
-│     │  Check for contradictions:                       │                │
-│     │    • Negation mismatch (e.g. "is" vs "is not")    │                │
-│     │    • Numeric mismatch (e.g. "75%" vs "25%")       │                │
-│     │                                                  │                │
-│     │  Score < threshold or contradiction?  ──► Flag   │                │
-│     └──────────────────────────────────────────────────┘                │
-│                                                                          │
-│   Revise: Remove flagged sentences from summary                         │
-└──────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                      4. EVALUATION & OUTPUT                             │
-│                                                                          │
-│   ┌─────────────────────────────────────────────────────────┐           │
-│   │  ROUGE-1 F1  │  ROUGE-2 F1  │  ROUGE-L F1               │           │
-│   │  Semantic F1 │  Factual Score│  Section Coverage         │           │
-│   │  Graph Coherence │ Media Score│  Runtime                 │           │
-│   └─────────────────────────────────────────────────────────┘           │
-│                                                                          │
-│   Outputs: JSON results, CSV tables, LaTeX tables, PNG figures          │
-│   Streamlit Dashboard: interactive section browsing, comparison,        │
-│                         survey synthesis, citation gallery              │
-└──────────────────────────────────────────────────────────────────────────┘
+PDF ──► PyMuPDF ──► Line Items ──► Metadata (title/authors/year)
+           │              │
+           ▼              ▼
+      Figures ◄──► Sections ──► Section Graph (Jaccard + Flow)
+           │              │
+           ▼              ▼
+       Tables        Citations (numbered + author regex)
 ```
+
+### 2. LLM Summarization
+Multiple backends supported with automatic fallback: **Groq API → Ollama → Local GGUF (llama.cpp)**. Each section is summarized independently with graph-informed context from linked sections. Priority-ranked composition produces a coherent final summary.
+
+### 3. Factual Auditing
+Every summary sentence is scored against the source using weighted **Jaccard + Cosine similarity**. Contradiction detection catches negation flips and numeric mismatches. Unsupportable claims are flagged and removed.
+
+### 4. Evaluation & Output
+Generates **ROUGE-1/2/L**, **Semantic F1**, **Factual Score**, **Section Coverage**, and **Graph Coherence** metrics. Output includes JSON results, CSV/LaTeX tables, and PNG figures.
 
 ---
 
-## Features
+## Screenshots
 
-### 1. Document Extraction (`pipeline.py:DocumentExtractor`)
-- **Metadata inference** — title, authors, year from PDF metadata or text heuristics
-- **Section parsing** — regex-based heading detection using font size, boldness, numbering patterns
-- **Figure/table extraction** — PyMuPDF image rects + `find_tables()`
-- **Citation parsing** — numbered `[1]` and author-name strategies
-- **Running header/footer removal** — frequency-based filtering
-- **Section graph construction** — Jaccard similarity + positional flow weights
+### Dashboard Overview
+![Dashboard Overview](outputs/screenshots/image.png)
 
-### 2. LLM Summarization (`pipeline.py:LLMService`)
-- **Multiple backends**: Groq API, Ollama, local GGUF (llama.cpp)
-- **Automatic provider detection**: Groq → Ollama → local fallback
-- **Retry with shrinking context window** — gracefully handles token limits
-- **Fallback summarizer** — extractive sentence selection when LLM unavailable
-- **Section-aware composition** — priority-ranked section selection
+### Paper Analysis — Section-by-section browsing with original vs summary
+![Paper Analysis](outputs/screenshots/RP01-Paper-analysis.png)
 
-### 3. Structure-Aware Summarization (`research_experiment_framework.py:StructureAwareSummarizer`)
-- **Section importance scoring** — priority map (Abstract=1.0, Method=0.95, Results=1.0, etc.)
-- **Graph-informed context** — top-3 linked sections provide context for each summary
-- **Priority-ranked final composition** — top-N sections by importance score
+### Comparative Analysis — Side-by-side paper comparison across 6 dimensions
+![Comparative Analysis](outputs/screenshots/RP02-comparison-analysis.png)
 
-### 4. Factual Consistency Auditing (`research_experiment_framework.py:FactualConsistencyChecker`)
-- **Support scoring** — weighted Jaccard + Cosine similarity per sentence
-- **Contradiction detection** — negation polarity flips, numeric mismatches
-- **Summary revision** — removes flagged unsupported sentences
+### Survey Synthesis — Thematic grouping and idea evolution
+![Survey Synthesis](outputs/screenshots/RP03-Survey-analysis.png)
 
-### 5. Multi-Document Analysis
-- **Comparative analysis** — side-by-side paper comparison across 6 dimensions
-- **Survey synthesis** — thematic grouping, idea evolution, open problems
-- **Cross-paper trend extraction** — yearly distribution, common keywords
+### Citation Gallery — Expandable reference lists per paper
+![Citations](outputs/screenshots/RP04-Citions-analysis.png)
 
-### 6. Media Segmentation Evaluation (`research_experiment_framework.py:MediaSegmentationEvaluator`)
-- Figure/table coverage, caption quality, alignment with sections
-- Composite `phase2_media_score` (6 weighted sub-metrics)
-
-### 7. Domain Adaptation
-- Auto-detects `medical`, `legal`, `govt`, or `general` domains
-- Domain-specific summarization instructions
-
-### 8. Interactive Web App (`app.py`)
-- **Paper Analysis tab** — metadata card, section-by-section browsing with original vs summary side-by-side
-- **Comparative tab** — overview table + AI-generated cross-paper analysis
-- **Survey tab** — thematic survey synthesis across multiple papers
-- **Citations tab** — expandable reference lists per paper
-- **Figures & Tables tab** — cropped figure gallery + table previews
+### Figures & Tables — Cropped figure gallery and table previews
+![Figures & Tables](outputs/screenshots/RP05-Fig-Tab-analysis.png)
 
 ---
 
-## Results & Metrics
+## Key Features
+
+### Core Pipeline
+- **Document Extraction** — Metadata inference, section parsing, figure/table extraction, citation parsing, running header/footer removal, section graph construction
+- **LLM Summarization** — Multiple backends (Groq, Ollama, local GGUF), auto provider detection, retry with shrinking context, extractive fallback summarizer
+- **Structure-Aware Summarization** — Section importance scoring, graph-informed context, priority-ranked composition
+- **Factual Consistency Auditing** — Support scoring, contradiction detection (negation + numeric), automated summary revision
+
+### Multi-Document Analysis
+- **Comparative Analysis** — Side-by-side comparison across 6 dimensions (objectives, methodologies, findings, datasets, strengths, contradictions)
+- **Survey Synthesis** — Thematic grouping, idea evolution tracking, open problems identification
+- **Cross-paper Trend Extraction** — Yearly distribution, common keyword analysis
+
+### Interactive Dashboard (Streamlit)
+- **5 tabs**: Paper Analysis, Comparative, Survey, Citations, Figures & Tables
+- Dark mode UI, section-level original-vs-summary view, expandable citation lists, figure gallery with cropped images
+
+### Evaluation Framework
+- ROUGE-1/2/L, Semantic F1 Proxy, Factual Score, Section Coverage, Graph Coherence
+- Media Segmentation Evaluation (figure/table coverage, caption quality, alignment)
+- Publication-ready outputs: CSV tables, LaTeX tables, PNG figures
+
+---
+
+## Technical Outcomes
 
 ### Quantitative Results (Longformer paper experiment)
 
@@ -230,46 +196,39 @@ The end-to-end flow processes a PDF through extraction → summarization → aud
 | **Phase2 Media Score** | 0.0000 | — | 0.4875 | — |
 | **Runtime (sec)** | 151.5 | 237.1 | 237.1 | +56.5% |
 
-Key insight: the structure-aware approach yields **98% better ROUGE-2**, **25% better semantic similarity**, and **55% better factual consistency** — at the cost of ~85s additional runtime.
+**Key insight**: The structure-aware approach delivers **98% better ROUGE-2**, **25% better semantic similarity**, and **55% better factual consistency** — at the cost of ~85s additional runtime.
 
-### Metric Comparison — Baseline vs Structure-Aware
+### Evaluation Figures
 
-![Metric Bar Chart](outputs/figures/publication_metric_bar.png)
+| Chart | Description |
+|-------|-------------|
+| ![Metric Bar](outputs/figures/publication_metric_bar.png) | Metric Comparison — Baseline vs Structure-Aware |
+| ![Radar](outputs/figures/publication_radar_comparison.png) | Radar Comparison across all metrics |
+| ![Tradeoff](outputs/figures/publication_quality_runtime_tradeoff.png) | Quality vs Runtime Tradeoff |
+| ![Heatmap](outputs/figures/section_level_delta_heatmap.png) | Section-Level Delta Heatmap |
+| ![Section Graph](outputs/figures/publication_section_relation_graph.png) | Section Relation Graph |
+| ![Media Graph](outputs/figures/publication_media_section_graph.png) | Media Assignment by Section |
+| ![Win Count](outputs/figures/section_level_win_count.png) | Section-Level Win Count |
+| ![Pipeline](outputs/figures/publication_pipeline_workflow.png) | Pipeline Workflow Diagram |
 
-### Radar Comparison
+---
 
-![Radar Comparison](outputs/figures/publication_radar_comparison.png)
+## Technology Stack
 
-### Quality vs Runtime Tradeoff
-
-![Quality Runtime Tradeoff](outputs/figures/publication_quality_runtime_tradeoff.png)
-
-### Section-Level Delta Heatmap
-
-![Section Delta Heatmap](outputs/figures/section_level_delta_heatmap.png)
-
-### Section Relation Graph
-
-![Section Relation Graph](outputs/figures/publication_section_relation_graph.png)
-
-### Media Assignment by Section
-
-![Media Section Graph](outputs/figures/publication_media_section_graph.png)
-
-### Section-Level Win Count
-
-![Section Win Count](outputs/figures/section_level_win_count.png)
-
-### Pipeline Workflow
-
-![Pipeline Workflow](outputs/figures/publication_pipeline_workflow.png)
+| Component | Technology |
+|-----------|-----------|
+| PDF Parsing | PyMuPDF (fitz) |
+| LLM Backends | Groq API, Ollama, llama.cpp (GGUF) |
+| Web UI | Streamlit |
+| Evaluation | ROUGE-1/2/L, Semantic F1 Proxy, Factual Score |
+| Media Extraction | PyMuPDF image rects + `find_tables()` |
+| Infrastructure | Docker (GROBID), Streamlit Cloud |
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-
 - Python 3.12
 - pip
 - (Optional) [Ollama](https://ollama.ai) for local LLM inference
@@ -278,11 +237,8 @@ Key insight: the structure-aware approach yields **98% better ROUGE-2**, **25% b
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/research-paper-summarizer
 cd research-paper-summarizer
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -302,7 +258,7 @@ export OLLAMA_MODEL="llama3.2:3b"
 # Place a .gguf file at models/llama-3.2-1b-instruct.Q4_K_M.gguf
 ```
 
-### Run the Streamlit App
+### Run the App
 
 ```bash
 streamlit run app.py
@@ -310,100 +266,31 @@ streamlit run app.py
 
 Upload one or more PDFs via the sidebar, then explore the interactive tabs.
 
-### Run the Experiment Pipeline
+### Run Experiments
 
 ```bash
 python run_research_experiments.py
 ```
 
-This processes the sample paper `data/2004.05150v2.pdf` and outputs comparison metrics, JSON results, and publication-ready tables.
-
-### Run the Notebook
-
-```bash
-jupyter notebook research_paper_novelty_experiments.ipynb
-```
-
----
-
-## Deployment
-
-### Streamlit Cloud
-
-1. Push to GitHub
-2. Connect repo at [share.streamlit.io](https://share.streamlit.io)
-3. Add secrets: `GROQ_API_KEY`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
-
-### Docker (GROBID only)
-
-```bash
-docker-compose up -d  # Starts GROBID on port 8070
-```
-
----
-
-## Sample Output
-
-### Structured Summary (from `Structured_Summary.txt`)
-
-```
-Title: Longformer: The Long-Document Transformer
-Authors: Iz Beltagy*, Matthew E. Peters*, Arman Cohan* (2020)
-
-Research Question / Objective:
-  Transformer-based models cannot process long sequences due to quadratic
-  self-attention. Longformer introduces an attention mechanism that scales
-  linearly with sequence length.
-
-Methodology:
-  Combines sliding window attention with global attention on task-specific
-  tokens. Pretrained on 3.7B tokens with progressive sequence length
-  training (2,048 → 23,040 tokens).
-
-Key Results:
-  - Outperforms RoBERTa on all long-document tasks
-  - New SOTA on WikiHop and TriviaQA
-  - 8x longer context than BERT-base at similar compute
-
-Limitations / Future Work:
-  Custom CUDA kernel required (not directly supported by PyTorch).
-```
-
-### JSON Experiment Results
-
-See `research_experiment_results.json` for full baseline vs structure-aware comparison metrics, including ROUGE scores, factual consistency, section coverage, and graph coherence.
+Processes the sample paper `data/2004.05150v2.pdf` and outputs comparison metrics, JSON results, and publication-ready tables.
 
 ---
 
 ## Project Structure
 
 ```
-├── app.py                                    # Streamlit dashboard
+├── app.py                                    # Streamlit dashboard (5 tabs)
 ├── pipeline.py                               # Core pipeline (DocumentExtractor, LLMService)
 ├── research_experiment_framework.py          # Research evaluation framework
 ├── run_research_experiments.py               # Experiment entry point
 ├── research_paper_novelty_experiments.ipynb  # Jupyter experiments
-├── research_paper_summarizer.ipynb           # Original notebook
 ├── requirements.txt                          # Python dependencies
-├── docker-compose.yml                        # GROBID service
 ├── data/
 │   └── 2004.05150v2.pdf                      # Sample arXiv paper
 ├── outputs/
-│   ├── tables/                               # Publication-ready CSV & LaTeX
-│   │   ├── publication_main_metrics.csv
-│   │   ├── publication_delta_metrics.csv
-│   │   ├── section_level_ablation.csv
-│   │   ├── section_relation_adjacency.csv
-│   │   └── media_section_incidence.csv
-│   └── figures/                              # Generated evaluation figures
-│       ├── publication_pipeline_workflow.png
-│       ├── publication_metric_bar.png
-│       ├── publication_radar_comparison.png
-│       ├── publication_quality_runtime_tradeoff.png
-│       ├── publication_section_relation_graph.png
-│       ├── publication_media_section_graph.png
-│       ├── section_level_delta_heatmap.png
-│       └── section_level_win_count.png
+│   ├── screenshots/                          # Dashboard screenshots (6 images)
+│   ├── figures/                              # Generated evaluation figures (8 PNGs)
+│   └── tables/                               # Publication-ready CSV & LaTeX
 ├── streamlit_app/                            # Standalone Streamlit deployment
 │   ├── app.py
 │   ├── pipeline.py
@@ -414,25 +301,12 @@ See `research_experiment_results.json` for full baseline vs structure-aware comp
 
 ---
 
-## Research Contributions
+## Author
 
-This project includes research-ready components for evaluating summarization quality and media-aware document understanding:
-
-- **Reproducible experimentation** — `research_paper_novelty_experiments.ipynb` + `run_research_experiments.py`
-- **Publication-ready outputs** — `outputs/tables/` contains CSV and LaTeX tables for metrics and ablation analysis
-- **8 evaluation figures** — bar charts, radar plots, heatmaps, relation graphs, workflow diagrams
-- **Phase 2 Media Metrics** — figure/table coverage, alignment, caption quality, density scoring
-- **Human evaluation template** — included in experiment output for manual review
+**Athiyaman M**
 
 ---
 
-## Technology Stack
+## License
 
-| Component | Technology |
-|-----------|-----------|
-| PDF Parsing | PyMuPDF (fitz) |
-| LLM Backends | Groq API, Ollama, llama.cpp (GGUF) |
-| Web UI | Streamlit |
-| Evaluation | ROUGE-1/2/L, Semantic F1 Proxy, Factual Score |
-| Media Extraction | PyMuPDF image rects + `find_tables()` |
-| Infrastructure | Docker (GROBID), Streamlit Cloud |
+This project is licensed under the MIT License.

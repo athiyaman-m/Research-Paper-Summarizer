@@ -23,3 +23,37 @@ OLLAMA_TIMEOUT_SEC = "180"
 OLLAMA_NUM_CTX = "2048"
 OLLAMA_MAX_INPUT_CHARS = "12000"
 OLLAMA_MAX_RETRIES = "3"
+
+# Setup to deploy the summarizer_app/ project on Streamlit Community Cloud:
+
+1. Push the summarizer_app/ folder to GitHub
+You only need the contents of summarizer_app/, ideally as the root of a dedicated GitHub repo
+
+2. Deploy on Streamlit Community Cloud
+2.1. Go to https://share.streamlit.io and sign in with your GitHub account.
+2.2. Click "New app" → "Deploy a public app from GitHub".
+2.3. Select the repo and branch.
+2.4. Main file path: app.py (if the repo root is summarizer_app/ contents), or summarizer_app/app.py if deploying the parent repo.
+2.5. Click "Deploy".
+
+3. Set the API Key (Secrets)
+After deployment, go to:
+App → Settings → Secrets (gear icon → "Secrets")
+Add:
+GROQ_API_KEY = "gsk_your_actual_groq_api_key_here"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+- Get a free API key at https://console.groq.com
+
+
+------------------
+
+# Option A: Deploy the whole repo (app will be at root)
+cd /home/cdac/Office-Projects/Research-Paper-Summarizer
+
+# Option B: Deploy only summarizer_app as its own repo
+cp -r streamlit_app /tmp/research-paper-summarizer && cd /tmp/research-paper-summarizer
+git init && git add . && git commit -m "Initial commit"
+# Create repo on GitHub, then:
+git remote add origin https://github.com/YOUR_USER/research-paper-summarizer.git
+git push -u origin main
+The .gitignore already excludes .streamlit/secrets.toml — so no API key leaks.
